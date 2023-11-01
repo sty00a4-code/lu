@@ -1,0 +1,193 @@
+use std::{fmt::Display, error::Error, num::{ParseIntError, ParseFloatError}};
+
+use oneparse::{lexer::*, position::Located};
+#[derive(Debug, Clone, PartialEq)]
+pub enum Token {
+    Ident(String),
+    Null,
+    Int(i32),
+    Float(f32),
+    Bool(bool),
+    String(String),
+
+    LParan,
+    RParan,
+    LBracket,
+    RBracket,
+    LBrace,
+    RBrace,
+    Equal,
+    Dot,
+    Comma,
+
+    Plus,
+    Minus,
+    Star,
+    Slash,
+
+    Let,
+    Return
+}
+#[derive(Debug, Clone, PartialEq)]
+pub enum LexError {
+    BadCharacter(char),
+    ParseIntError(ParseIntError),
+    ParserFloatError(ParseFloatError),
+    UnclosedString
+}
+
+impl Token {
+    pub fn ident(ident: String) -> Self {
+        match ident.as_str() {
+            "null" => Self::Null,
+            "true" => Self::Bool(true),
+            "false" => Self::Bool(false),
+            "let" => Self::Let,
+            "return" => Self::Return,
+            _ => Self::Ident(ident)
+        }
+    }
+    pub fn name(&self) -> String {
+        match self {
+            Token::Ident(_) => "ident".to_string(),
+            Token::Int(_) => "int".to_string(),
+            Token::Float(_) => "float".to_string(),
+            Token::Bool(_) => "bool".to_string(),
+            Token::String(_) => "string".to_string(),
+            _ => format!("{:?}", self.to_string()),
+        }
+    }
+}
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Ident(ident) => write!(f, "{ident}"),
+            Token::Null => write!(f, "null"),
+            Token::Int(v) => write!(f, "{v:?}"),
+            Token::Float(v) => write!(f, "{v:?}"),
+            Token::Bool(v) => write!(f, "{v:?}"),
+            Token::String(v) => write!(f, "{v:?}"),
+            Token::LParan => write!(f, "("),
+            Token::RParan => write!(f, ")"),
+            Token::LBracket => write!(f, "["),
+            Token::RBracket => write!(f, "]"),
+            Token::LBrace => write!(f, "{{"),
+            Token::RBrace => write!(f, "}}"),
+            Token::Equal => write!(f, "="),
+            Token::Dot => write!(f, "."),
+            Token::Comma => write!(f, ","),
+            Token::Plus => write!(f, "+"),
+            Token::Minus => write!(f, "-"),
+            Token::Star => write!(f, "*"),
+            Token::Slash => write!(f, "/"),
+            Token::Let => write!(f, "let"),
+            Token::Return => write!(f, "return"),
+        }
+    }
+}
+impl Lexable for Token {
+    type Error = LexError;
+    fn lex(lexer: &mut Lexer) -> Result<Option<Located<Self>>, Located<Self::Error>> {
+        while let Some(c) = lexer.get() {
+            if !c.is_ascii_whitespace() {
+                break;
+            }
+            lexer.advance();
+        }
+        let mut pos = lexer.pos();
+        let Some(c) = lexer.get() else {
+            return Ok(None);
+        };
+        lexer.advance();
+        match c {
+            '(' => Ok(Some(Located::new(Token::LParan, pos))),
+            ')' => Ok(Some(Located::new(Token::RParan, pos))),
+            '[' => Ok(Some(Located::new(Token::LBracket, pos))),
+            ']' => Ok(Some(Located::new(Token::RBracket, pos))),
+            '{' => Ok(Some(Located::new(Token::LBrace, pos))),
+            '}' => Ok(Some(Located::new(Token::RBrace, pos))),
+            '=' => Ok(Some(Located::new(Token::Equal, pos))),
+            '.' => Ok(Some(Located::new(Token::Dot, pos))),
+            ',' => Ok(Some(Located::new(Token::Comma, pos))),
+            '+' => Ok(Some(Located::new(Token::Plus, pos))),
+            '-' => Ok(Some(Located::new(Token::Minus, pos))),
+            '*' => Ok(Some(Located::new(Token::Star, pos))),
+            '/' => Ok(Some(Located::new(Token::Slash, pos))),
+            '"' => {
+                let mut string = String::new();
+                while let Some(c) = lexer.get() {
+                    if c == '"' {
+                        break;
+                    }
+                    string.push(c);
+                    lexer.advance();
+                }
+                pos.extend(&lexer.pos());
+                if lexer.get() != Some('"') {
+                    return Err(Located::new(LexError::UnclosedString, pos))
+                }
+                lexer.advance();
+                Ok(Some(Located::new(Token::String(string), pos)))
+            }
+            c if c.is_ascii_digit() => {
+                let mut number = String::from(c);
+                while let Some(c) = lexer.get() {
+                    if !c.is_ascii_alphanumeric() {
+                        break;
+                    }
+                    number.push(c);
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                }
+                if lexer.get() == Some('.') {
+                    number.push('.');
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    while let Some(c) = lexer.get() {
+                        if !c.is_ascii_alphanumeric() {
+                            break;
+                        }
+                        number.push(c);
+                        pos.extend(&lexer.pos());
+                        lexer.advance();
+                    }
+                    match number.parse() {
+                        Ok(number) => Ok(Some(Located::new(Token::Float(number), pos))),
+                        Err(err) => Err(Located::new(LexError::ParserFloatError(err), pos)),
+                    }
+                } else {
+                    match number.parse() {
+                        Ok(number) => Ok(Some(Located::new(Token::Int(number), pos))),
+                        Err(err) => Err(Located::new(LexError::ParseIntError(err), pos)),
+                    }
+                }
+            }
+            c if c.is_ascii_alphanumeric() => {
+                let mut ident = String::from(c);
+                while let Some(c) = lexer.get() {
+                    if !c.is_ascii_alphanumeric() {
+                        break;
+                    }
+                    ident.push(c);
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                }
+                Ok(Some(Located::new(Token::ident(ident), pos)))
+            }
+            c => Err(Located::new(LexError::BadCharacter(c), pos))
+        }
+    }
+}
+
+impl Display for LexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LexError::BadCharacter(c) => write!(f, "bad character {c:?}"),
+            LexError::ParseIntError(err) => write!(f, "{err}"),
+            LexError::ParserFloatError(err) => write!(f, "{err}"),
+            LexError::UnclosedString => write!(f, "unclosed string"),
+            
+        }
+    }
+}
+impl Error for LexError {}
