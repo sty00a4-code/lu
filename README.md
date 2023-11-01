@@ -1,6 +1,6 @@
 # Lu
 
-A light weight interpreted programming language
+A light weight interpreted programming language wirtten in Rust
 
 # To-Do
 
