@@ -40,8 +40,8 @@ fn main() {
         }
     };
     // dbg!(&ast);
-    let (main_closure, environment) = {
-        let mut compiler = Compiler::default().with_env(std_env());
+    let main_closure = {
+        let mut compiler = Compiler::default();
         match ast.compile(&mut compiler) {
             Ok(()) => {}
             Err(Located { value: err, pos }) => {
@@ -54,11 +54,11 @@ fn main() {
                 exit(1);
             }
         }
-        (compiler.closures[0].clone(), compiler.environment)
+        compiler.closures[0].clone()
     };
     // dbg!(&main_closure);
     match Interpreter::default()
-        .with_globals(environment)
+        .with_globals(std_env())
         .run(main_closure)
     {
         Ok(()) => {}

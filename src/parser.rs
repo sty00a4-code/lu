@@ -339,7 +339,6 @@ impl Parsable<Token> for Ident {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompileError {
-    NotFound(String),
 }
 impl Compilable for Located<Chunk> {
     type Error = CompileError;
@@ -524,10 +523,7 @@ impl Compilable for Located<Path> {
     fn compile(self, compiler: &mut Compiler) -> Result<Self::Output, Located<Self::Error>> {
         let Located { value: path, pos } = self;
         match path {
-            Path::Ident(Ident(ident)) => match compiler.get_local(&ident) {
-                Some(location) => Ok(location),
-                None => Err(Located::new(CompileError::NotFound(ident), pos)),
-            }
+            Path::Ident(Ident(ident)) => Ok(compiler.get_local(&ident)),
             Path::Field { head, field: Located { value: Ident(field), pos: _ } } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
@@ -560,10 +556,8 @@ impl Display for ParserError {
 }
 impl Error for ParserError {}
 impl Display for CompileError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CompileError::NotFound(ident) => write!(f, "{ident:?} not found in current scope"),
-        }
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
     }
 }
 impl Error for CompileError {}

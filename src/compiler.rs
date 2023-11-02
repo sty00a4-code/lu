@@ -90,7 +90,6 @@ pub struct Closure {
 }
 
 pub struct Compiler {
-    pub environment: HashMap<String, Value>,
     pub closures: Vec<Closure>,
 
     scope_stacks: Vec<Vec<Scope>>,
@@ -105,7 +104,6 @@ pub struct Scope {
 impl Default for Compiler {
     fn default() -> Self {
         Self {
-            environment: HashMap::default(),
             closures: vec![Closure::default()],
             scope_stacks: vec![vec![Scope::default()]],
             cp: 0,
@@ -113,10 +111,6 @@ impl Default for Compiler {
     }
 }
 impl Compiler {
-    pub fn with_env(mut self, env: HashMap<String, Value>) -> Self {
-        self.environment = env;
-        self
-    }
     pub fn push_closure(&mut self, closure: Closure) {
         self.closures.push(closure);
         self.scope_stacks.push(vec![Scope::default()]);
@@ -197,19 +191,16 @@ impl Compiler {
         scope.new_local(ident, register);
         register
     }
-    pub fn get_local(&mut self, ident: &str) -> Option<Location> {
+    pub fn get_local(&mut self, ident: &str) -> Location {
         let scope_stack = self
             .get_scope_stack()
             .expect("no current scope stack");
         for scope in scope_stack.iter().rev() {
-            if scope.has_local(ident) {
-                return scope.get_local(ident).map(|addr| Location::Register(*addr))
+            if let Some(addr) = scope.get_local(ident) {
+                return Location::Register(*addr)
             }
         }
-        if self.environment.contains_key(ident) {
-            return Some(Location::Global(self.new_const(Value::String(Rc::new(ident.to_string())))))
-        }
-        None
+        Location::Global(self.new_const(Value::String(Rc::new(ident.to_string()))))
     }
 }
 impl Scope {
