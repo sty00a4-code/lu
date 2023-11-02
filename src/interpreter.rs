@@ -236,15 +236,48 @@ impl Interpreter {
                     return Ok(true)
                 }
             }
-            ByteCode::Null { dst } => {
-                let register = self.location(dst).expect("location not found");
-                *register = Value::Null;
-            }
+
             ByteCode::Move { dst, src } => {
                 let value = self.source(src).expect("source not found").clone();
                 let register = self.location(dst).expect("location not found");
                 *register = value;
             }
+            ByteCode::Null { dst } => {
+                let register = self.location(dst).expect("location not found");
+                *register = Value::Null;
+            }
+            ByteCode::Vector { dst, start, amount } => {
+                let mut vector = vec![];
+                for addr in start..start + amount {
+                    vector.push(
+                        self.source(Source::Register(addr))
+                            .expect("source not found")
+                            .clone(),
+                    );
+                }
+                let register = self.location(dst).expect("location not found");
+                *register = Value::Vector(Rc::new(vector));
+            }
+            ByteCode::Object { dst } => {
+                let register = self.location(dst).expect("location not found");
+                *register = Value::Object(Rc::new(Object::default()));
+            }
+            ByteCode::SetField { dst, field, src } => {
+                let field = self.source(field).expect("source not found").clone();
+                let Value::String(field) = field else {
+                    return Err(Located::new(RunTimeError::InvalidField(Value::Object(Rc::default()), field), pos))
+                };
+                let value = self.source(src).expect("source not found").clone();
+                let object = self.location(dst).expect("location not found");
+                if let Value::Object(object) = object {
+                    if let Some(object) = Rc::get_mut(object) {
+                        object.map.insert(field.to_string(), value);
+                    }
+                } else {
+                    return Err(Located::new(RunTimeError::InvalidFieldHead(object.clone()), pos))
+                }
+            }
+
             ByteCode::Binary {
                 op,
                 dst,

@@ -5,9 +5,9 @@ A light weight interpreted programming language wirtten in Rust
 # To-Do
 
 ## Features
-- [ ] path impl
+- [x] path impl
 - [ ] binary and unary expressions
-- [ ] vector and object creation
+- [x] vector and object creation
 - [ ] more binary operators
 - [ ] control flow
   - [ ] if

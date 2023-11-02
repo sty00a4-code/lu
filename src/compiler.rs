@@ -32,11 +32,24 @@ pub enum ByteCode {
         src: Source,
     },
 
+    Move {
+        dst: Location,
+        src: Source,
+    },
     Null {
         dst: Location,
     },
-    Move {
+    Vector {
         dst: Location,
+        start: usize,
+        amount: usize
+    },
+    Object {
+        dst: Location,
+    },
+    SetField {
+        dst: Location,
+        field: Source,
         src: Source,
     },
 
