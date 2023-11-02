@@ -1,4 +1,4 @@
-use oneparse::position::Located;
+use oneparse::position::{Located, Positon};
 use std::{
     collections::HashMap,
     error::Error,
@@ -28,7 +28,7 @@ pub enum FunctionKind {
     Function(Rc<Closure>),
     NativeFunction(NativeFunction)
 }
-pub type NativeFunction = fn(&mut Interpreter, Vec<Value>) -> Result<Option<Value>, Located<RunTimeError>>;
+pub type NativeFunction = fn(&mut Interpreter, Vec<Value>, &Positon) -> Result<Option<Value>, Located<RunTimeError>>;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Object {
     pub map: HashMap<String, Value>,
@@ -57,6 +57,7 @@ pub enum RunTimeError {
     NotCallable(Value),
     InvalidFieldHead(Value),
     InvalidField(Value, Value),
+    Custom(String),
 }
 impl Interpreter {
     pub fn with_globals(mut self, globals: HashMap<String, Value>) -> Self {
@@ -223,7 +224,7 @@ impl Interpreter {
                             self.enter_call(closure, args, dst);
                         }
                         FunctionKind::NativeFunction(func) => {
-                            let value = func(self, args)?;
+                            let value = func(self, args, &pos)?;
                             if let Some(dst) = dst {
                                 let register = self.location(dst).expect("location not found");
                                 *register = value.unwrap_or_default();
@@ -725,6 +726,7 @@ impl Display for RunTimeError {
             RunTimeError::NotCallable(value) => write!(f, "cannot call {value:?}"),
             RunTimeError::InvalidFieldHead(head) => write!(f, "cannot get field of {head:?}"),
             RunTimeError::InvalidField(head, field) => write!(f, "cannot get field of {head:?} with {field:?}"),
+            RunTimeError::Custom(string) => write!(f, "{string}"),
             
         }
     }
