@@ -557,7 +557,7 @@ impl Display for ParserError {
 impl Error for ParserError {}
 impl Display for CompileError {
     fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        Ok(())
     }
 }
 impl Error for CompileError {}
