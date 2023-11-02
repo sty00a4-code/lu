@@ -88,6 +88,39 @@ pub enum Path {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ident(pub String);
 
+impl<'a> BinaryOperator {
+    pub const LAYER: &'a [&'a [Self]] = &[
+        &[Self::Add, Self::Sub],
+        &[Self::Mul, Self::Div],
+    ];
+    pub fn layer(layer: usize) -> Option<&'a &'a [Self]> {
+        Self::LAYER.get(layer)
+    }
+    pub fn token(token: &Token) -> Option<Self> {
+        match token {
+            Token::Plus => Some(Self::Add),
+            Token::Minus => Some(Self::Sub),
+            Token::Star => Some(Self::Mul),
+            Token::Slash => Some(Self::Div),
+            _ => None
+        }
+    }
+}
+impl<'a> UnaryOperator {
+    pub const LAYER: &'a [&'a [Self]] = &[
+        &[Self::Neg],
+    ];
+    pub fn layer(layer: usize) -> Option<&'a &'a [Self]> {
+        Self::LAYER.get(layer)
+    }
+    pub fn token(token: &Token) -> Option<Self> {
+        match token {
+            Token::Minus => Some(Self::Neg),
+            _ => None
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParserError {
     UnexpectedEndOfFile,
@@ -215,9 +248,46 @@ impl Parsable<Token> for Statement {
         }
     }
 }
-impl Parsable<Token> for Expression {
-    type Error = ParserError;
-    fn parse(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<Self::Error>> {
+impl Expression {
+    pub fn binary(parser: &mut Parser<Token>, layer: usize) -> Result<Located<Self>, Located<ParserError>> {
+        let Some(ops) = BinaryOperator::layer(layer) else {
+            return Self::unary(parser, 0)
+        };
+        let mut left = Self::binary(parser, layer + 1)?;
+        while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+            let Some(op) = BinaryOperator::token(token) else {
+                break;
+            };
+            if !ops.contains(&op) {
+                break;
+            }
+            parser.token();
+            let mut pos = left.pos.clone();
+            let right = Self::binary(parser, layer + 1)?;
+            pos.extend(&right.pos);
+            left = Located::new(Self::Binary { op, left: Box::new(left), right: Box::new(right) }, pos);
+        }
+        Ok(left)
+    }
+    pub fn unary(parser: &mut Parser<Token>, layer: usize) -> Result<Located<Self>, Located<ParserError>> {
+        let Some(ops) = UnaryOperator::layer(layer) else {
+            return Self::call(parser)
+        };
+        if let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+            if let Some(op) = UnaryOperator::token(token) {
+                if ops.contains(&op) {
+                    let Located { value: _, mut pos } = parser.token().unwrap();
+                    let right = Self::unary(parser, layer)?;
+                    pos.extend(&right.pos);
+                    return Ok(Located::new(Self::Unary { op, right: Box::new(right) }, pos))
+                }
+            }
+            Self::unary(parser, layer + 1)
+        } else {
+            Self::call(parser)
+        }
+    }
+    pub fn call(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
         let atom = Atom::parse(parser)?;
         if let Some(Located { value: Token::LParan, pos: _ }) = parser.token_ref() {
             parser.token();
@@ -239,6 +309,12 @@ impl Parsable<Token> for Expression {
         } else {
             Ok(atom.map(Self::Atom))
         }
+    }
+}
+impl Parsable<Token> for Expression {
+    type Error = ParserError;
+    fn parse(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<Self::Error>> {
+        Self::binary(parser, 0)
     }
 }
 impl Parsable<Token> for Atom {
@@ -450,30 +526,32 @@ impl Compilable for Located<Expression> {
                 }
             },
             Expression::Binary { op, left, right } => {
+                let dst = compiler.new_register();
                 let right = right.compile(compiler)?;
                 let left = left.compile(compiler)?;
                 compiler.write(
                     ByteCode::Binary {
                         op,
-                        dst: left,
+                        dst: Location::Register(dst),
                         left: left.into(),
                         right: right.into(),
                     },
                     pos,
                 );
-                Ok(left)
+                Ok(Location::Register(dst))
             }
             Expression::Unary { op, right } => {
+                let dst = compiler.new_register();
                 let right = right.compile(compiler)?;
                 compiler.write(
                     ByteCode::Unary {
                         op,
-                        dst: right,
+                        dst: Location::Register(dst),
                         right: right.into(),
                     },
                     pos,
                 );
-                Ok(right)
+                Ok(Location::Register(dst))
             },
             Expression::Call { func, args } => {
                 let func = func.compile(compiler)?;

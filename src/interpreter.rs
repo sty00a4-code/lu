@@ -352,13 +352,13 @@ impl Interpreter {
                         }
                     },
                     BinaryOperator::Mul => match (left, right) {
-                        (Value::Int(left), Value::Int(right)) => Value::Int(left / right),
-                        (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
+                        (Value::Int(left), Value::Int(right)) => Value::Float(left as f32 * right as f32),
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left * right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Float(left as f32 / right)
+                            Value::Float(left as f32 * right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Float(left / right as f32)
+                            Value::Float(left * right as f32)
                         }
                         (left, right) => {
                             return Err(Located::new(
