@@ -384,11 +384,27 @@ impl Compilable for Located<Statement> {
                 scope.new_local(ident.value.0, dst.into());
                 Ok(())
             }
-            Statement::Assign { path, expr } => {
+            Statement::Assign { path: Located { value: path, pos: _ }, expr } => {
                 let src = expr.compile(compiler)?;
-                let dst = path.compile(compiler)?;
-                compiler.write(ByteCode::Move { dst, src: src.into() }, pos);
-                Ok(())
+                match path {
+                    Path::Ident(Ident(ident)) => {
+                        let dst = compiler.get_local(&ident);
+                        compiler.write(ByteCode::Move { dst, src: src.into() }, pos);
+                        Ok(())
+                    }
+                    Path::Field { head, field: Located { value: Ident(field), pos: _ } } => {
+                        let dst = head.compile(compiler)?;
+                        let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                        compiler.write(ByteCode::SetField { dst, field, src: src.into() }, pos);
+                        Ok(())
+                    }
+                    Path::Index { head, index } => {
+                        let dst = head.compile(compiler)?;
+                        let index = index.compile(compiler)?;
+                        compiler.write(ByteCode::SetField { dst, field: index.into(), src: src.into() }, pos);
+                        Ok(())
+                    }
+                }
             }
             Statement::Call { func, args } => {
                 let func = func.compile(compiler)?;

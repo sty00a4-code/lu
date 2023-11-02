@@ -165,7 +165,7 @@ impl Interpreter {
                 break;
             }
         }
-        Ok(self.globals.get("__module").cloned())
+        Ok(self.globals.get("__module").cloned().and_then(|value| if value == Value::Null { None } else { Some(value) }))
     }
     pub fn step(&mut self) -> Result<bool, Located<RunTimeError>> {
         let Located {
@@ -268,17 +268,28 @@ impl Interpreter {
             }
             ByteCode::SetField { dst, field, src } => {
                 let field = self.source(field).cloned().unwrap_or_default();
-                let Value::String(field) = field else {
-                    return Err(Located::new(RunTimeError::InvalidField(Value::Object(Rc::default()), field), pos))
-                };
                 let value = self.source(src).cloned().unwrap_or_default();
-                let object = self.location(dst).expect("location not found");
-                if let Value::Object(object) = object {
-                    if let Some(object) = Rc::get_mut(object) {
-                        object.map.insert(field.to_string(), value);
+                match self.location(dst).expect("location not found") {
+                    Value::Object(object) => 
+                        if let Value::String(field) = field {
+                            if let Some(object) = Rc::get_mut(object) {
+                                object.map.insert(field.to_string(), value);
+                            }
+                        } else {
+                            return Err(Located::new(RunTimeError::InvalidField(Value::Object(object.clone()), field), pos))
+                        }
+                    Value::Vector(vector) => {
+                        if let Value::Int(index) = field {
+                            if let Some(vector) = Rc::get_mut(vector) {
+                                if let Some(old_value) = vector.get_mut(index.unsigned_abs() as usize) {
+                                    *old_value = value;
+                                }
+                            }
+                        } else {
+                            return Err(Located::new(RunTimeError::InvalidField(Value::Vector(vector.clone()), field), pos))
+                        }
                     }
-                } else {
-                    return Err(Located::new(RunTimeError::InvalidFieldHead(object.clone()), pos))
+                    value => return Err(Located::new(RunTimeError::InvalidFieldHead(value.clone()), pos))
                 }
             }
 

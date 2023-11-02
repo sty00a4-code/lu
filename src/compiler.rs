@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, fmt::Display};
 
 use oneparse::position::{Located, Positon};
 
@@ -240,5 +240,49 @@ impl From<Location> for usize {
             Location::Register(register) => register,
             Location::Global(addr) => addr,
         }
+    }
+}
+
+impl Source {
+    pub fn display_code(&self, closure: &Closure) -> String {
+        format!("src({})", match self {
+            Source::Register(register) => format!("reg@{register}"),
+            Source::Const(addr) => format!("const@{addr}={:?}", closure.consts.get(*addr).cloned().unwrap_or_default()),
+            Source::Null => Value::Null.to_string(),
+            Source::Global(addr) => format!("glob@{addr}={:?}", closure.consts.get(*addr).cloned().unwrap_or_default()),
+        })
+    } 
+}
+impl Location {
+    pub fn display_code(&self, closure: &Closure) -> String {
+        format!("loc({})", match self {
+            Location::Register(register) => format!("reg@{register}"),
+            Location::Global(addr) => format!("glob@{addr}={:?}", closure.consts.get(*addr).cloned().unwrap_or_default()),
+        })
+    } 
+}
+impl Display for Closure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "closure at {:?}", self as *const Closure)?;
+        for (addr, Located { value: bytecode, pos: _ }) in self.code.iter().enumerate() {
+            writeln!(f, "\t[{addr}] {}", match bytecode {
+                ByteCode::None => "none".to_string(),
+                ByteCode::Halt => "halt".to_string(),
+                ByteCode::Jump { addr } => format!("jump {addr}"),
+                ByteCode::JumpIf { cond, addr, not } => format!("jump {} {addr} not={not}", cond.display_code(self)),
+                ByteCode::Call { func, start, amount, dst } => format!("call {} {start} {amount} {:?}", func.display_code(self), dst.map(|loc| loc.display_code(self))),
+                ByteCode::Return { src } => format!("return {}", src.display_code(self)),
+                ByteCode::Move { dst, src } => format!("move {} {}", dst.display_code(self), src.display_code(self)),
+                ByteCode::Null { dst } => format!("null {}", dst.display_code(self)),
+                ByteCode::Vector { dst, start, amount } => format!("vector {} {start} {amount}", dst.display_code(self)),
+                ByteCode::Object { dst } => format!("object {}", dst.display_code(self)),
+                ByteCode::SetField { dst, field, src } => format!("setfield {} {} {}", dst.display_code(self), field.display_code(self), src.display_code(self)),
+                ByteCode::Binary { op, dst, left, right } => format!("binary {op:?} {} {} {}", dst.display_code(self), left.display_code(self), right.display_code(self)),
+                ByteCode::Unary { op, dst, right } => format!("unary {op:?} {} {}", dst.display_code(self), right.display_code(self)),
+                ByteCode::Field { dst, head, field } => format!("field {} {} {}", dst.display_code(self), head.display_code(self), field.display_code(self)),
+            })?;
+        }
+
+        Ok(())
     }
 }
