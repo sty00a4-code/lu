@@ -71,6 +71,14 @@ pub enum Expression {
         func: Located<Atom>,
         args: Vec<Located<Expression>>,
     },
+    Field {
+        head: Box<Located<Self>>,
+        field: Located<Ident>
+    },
+    Index {
+        head: Box<Located<Self>>,
+        index: Box<Located<Expression>>
+    },
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Atom {
@@ -297,7 +305,7 @@ impl Expression {
     }
     pub fn unary(parser: &mut Parser<Token>, layer: usize) -> Result<Located<Self>, Located<ParserError>> {
         let Some(ops) = UnaryOperator::layer(layer) else {
-            return Self::call(parser)
+            return Self::field(parser)
         };
         if let Some(Located { value: token, pos: _ }) = parser.token_ref() {
             if let Some(op) = UnaryOperator::token(token) {
@@ -308,10 +316,32 @@ impl Expression {
                     return Ok(Located::new(Self::Unary { op, right: Box::new(right) }, pos))
                 }
             }
-            Self::unary(parser, layer + 1)
-        } else {
-            Self::call(parser)
         }
+        Self::unary(parser, layer + 1)
+    }
+    pub fn field(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
+        let mut head = Self::call(parser)?;
+        while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+            match token {
+                Token::Dot => {
+                    parser.token();
+                    let field = Ident::parse(parser)?;
+                    let mut pos = head.pos.clone();
+                    pos.extend(&field.pos);
+                    head = Located::new(Self::Field { head: Box::new(head), field }, pos)
+                }
+                Token::LBracket => {
+                    parser.token();
+                    let index = Expression::parse(parser)?;
+                    let Located { value: _, pos: end_pos } = expect_token!(parser: RBracket);
+                    let mut pos = head.pos.clone();
+                    pos.extend(&end_pos);
+                    head = Located::new(Self::Index { head: Box::new(head), index: Box::new(index) }, pos)
+                }
+                _ => break
+            }
+        }
+        Ok(head)
     }
     pub fn call(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
         let atom = Atom::parse(parser)?;
@@ -594,6 +624,20 @@ impl Compilable for Located<Expression> {
                     compiler.write(ByteCode::Move { dst: Location::Register(start + dst), src: arg_dst.into() }, pos.clone());
                 }
                 compiler.write(ByteCode::Call { func, start, amount, dst: Some(Location::Register(dst)) }, pos);
+                Ok(Location::Register(dst))
+            }
+            Expression::Field { head, field: Located { value: Ident(field), pos: _ } } => {
+                let dst = compiler.new_register();
+                let head = head.compile(compiler)?;
+                let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: head.into(), field }, pos);
+                Ok(Location::Register(dst))
+            }
+            Expression::Index { head, index } => {
+                let dst = compiler.new_register();
+                let head = head.compile(compiler)?;
+                let index = index.compile(compiler)?;
+                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: head.into(), field: index.into() }, pos);
                 Ok(Location::Register(dst))
             }
         }
