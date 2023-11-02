@@ -18,7 +18,7 @@ A light weight interpreted programming language wirtten in Rust
 - [ ] optimizations
 ## Environment
 - [x] function `setmeta(object, meta)`: set the meta information of an object
-- [ ] function `error(string)`: raise an error
+- [x] function `error(string)`: raise an error
 - [ ] module `vec`
   - len(): 
   - push(value): push on front
