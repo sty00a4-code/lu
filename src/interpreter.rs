@@ -154,6 +154,9 @@ impl Interpreter {
                     Value::String(ident) => ident.clone(),
                     _ => return None
                 };
+                if !self.globals.contains_key(ident.as_ref()) {
+                    self.globals.insert(ident.to_string(), Value::default());
+                } 
                 self.globals.get_mut(ident.as_ref())
             }
         }
