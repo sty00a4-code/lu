@@ -336,7 +336,7 @@ impl Interpreter {
                         }
                     },
                     BinaryOperator::Div => match (left, right) {
-                        (Value::Int(left), Value::Int(right)) => Value::Int(left / right),
+                        (Value::Int(left), Value::Int(right)) => Value::Float(left as f32 / right as f32),
                         (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
                         (Value::Int(left), Value::Float(right)) => {
                             Value::Float(left as f32 / right)
@@ -352,7 +352,7 @@ impl Interpreter {
                         }
                     },
                     BinaryOperator::Mul => match (left, right) {
-                        (Value::Int(left), Value::Int(right)) => Value::Float(left as f32 * right as f32),
+                        (Value::Int(left), Value::Int(right)) => Value::Int(left * right),
                         (Value::Float(left), Value::Float(right)) => Value::Float(left * right),
                         (Value::Int(left), Value::Float(right)) => {
                             Value::Float(left as f32 * right)
