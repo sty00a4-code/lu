@@ -31,8 +31,8 @@ pub enum FunctionKind {
 pub type NativeFunction = fn(&mut Interpreter, Vec<Value>) -> Result<Option<Value>, Located<RunTimeError>>;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Object {
-    map: HashMap<String, Value>,
-    meta: Option<Rc<Self>>,
+    pub map: HashMap<String, Value>,
+    pub meta: Option<Rc<Self>>,
 }
 
 #[derive(Debug, Default)]
