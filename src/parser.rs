@@ -34,14 +34,25 @@ pub enum Statement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum BinaryOperator {
+    And,
+    Or,
+    EQ,
+    NE,
+    LT,
+    GT,
+    LE,
+    GE,
     Add,
     Sub,
-    Div,
     Mul,
+    Div,
+    Mod,
+    Pow,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum UnaryOperator {
+    Not,
     Neg,
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -90,24 +101,38 @@ pub struct Ident(pub String);
 
 impl<'a> BinaryOperator {
     pub const LAYER: &'a [&'a [Self]] = &[
+        &[Self::And, Self::Or],
+        &[Self::EQ, Self::NE, Self::LT, Self::GT, Self::LE, Self::GE],
         &[Self::Add, Self::Sub],
-        &[Self::Mul, Self::Div],
+        &[Self::Mul, Self::Div, Self::Mod],
+        &[Self::Pow],
     ];
     pub fn layer(layer: usize) -> Option<&'a &'a [Self]> {
         Self::LAYER.get(layer)
     }
     pub fn token(token: &Token) -> Option<Self> {
         match token {
+            Token::Ampersand => Some(Self::And),
+            Token::Pipe => Some(Self::Or),
+            Token::EQ => Some(Self::EQ),
+            Token::NE => Some(Self::NE),
+            Token::LT => Some(Self::LT),
+            Token::GT => Some(Self::GT),
+            Token::LE => Some(Self::LE),
+            Token::GE => Some(Self::GE),
             Token::Plus => Some(Self::Add),
             Token::Minus => Some(Self::Sub),
             Token::Star => Some(Self::Mul),
             Token::Slash => Some(Self::Div),
+            Token::Percent => Some(Self::Mod),
+            Token::Exponent => Some(Self::Pow),
             _ => None
         }
     }
 }
 impl<'a> UnaryOperator {
     pub const LAYER: &'a [&'a [Self]] = &[
+        &[Self::Not],
         &[Self::Neg],
     ];
     pub fn layer(layer: usize) -> Option<&'a &'a [Self]> {
@@ -115,6 +140,7 @@ impl<'a> UnaryOperator {
     }
     pub fn token(token: &Token) -> Option<Self> {
         match token {
+            Token::Exclamation => Some(Self::Not),
             Token::Minus => Some(Self::Neg),
             _ => None
         }
@@ -325,6 +351,7 @@ impl Parsable<Token> for Atom {
         }
         let Located { value: token, mut pos } = expect!(parser);
         match token {
+            Token::Null => Ok(Located::new(Self::Null, pos)),
             Token::Int(v) => Ok(Located::new(Self::Int(v), pos)),
             Token::Float(v) => Ok(Located::new(Self::Float(v), pos)),
             Token::Bool(v) => Ok(Located::new(Self::Bool(v), pos)),

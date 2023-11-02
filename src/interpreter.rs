@@ -303,6 +303,82 @@ impl Interpreter {
                 let right = self.source(right).cloned().unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match op {
+                    BinaryOperator::And => if bool::from(&left) {
+                        right
+                    } else {
+                        left
+                    },
+                    BinaryOperator::Or => if bool::from(&left) {
+                        left
+                    } else {
+                        right
+                    },
+                    BinaryOperator::EQ => Value::Bool(left == right),
+                    BinaryOperator::NE => Value::Bool(left != right),
+                    BinaryOperator::LT => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left < right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left < right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool((left as f32) < right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left < right as f32)
+                        }
+                        (left, right) => {
+                            return Err(Located::new(
+                                RunTimeError::Binary(op, left, right),
+                                pos.clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::GT => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left > right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left > right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool(left as f32 > right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left > right as f32)
+                        }
+                        (left, right) => {
+                            return Err(Located::new(
+                                RunTimeError::Binary(op, left, right),
+                                pos.clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::LE => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left <= right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left <= right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool(left as f32 <= right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left <= right as f32)
+                        }
+                        (left, right) => {
+                            return Err(Located::new(
+                                RunTimeError::Binary(op, left, right),
+                                pos.clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::GE => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left >= right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left >= right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool(left as f32 >= right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left >= right as f32)
+                        }
+                        (left, right) => {
+                            return Err(Located::new(
+                                RunTimeError::Binary(op, left, right),
+                                pos.clone(),
+                            ))
+                        }
+                    },
                     BinaryOperator::Add => match (left, right) {
                         (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
                         (Value::Float(left), Value::Float(right)) => Value::Float(left + right),
@@ -367,6 +443,39 @@ impl Interpreter {
                             ))
                         }
                     },
+                    BinaryOperator::Mod => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Int(left % right),
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left % right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float(left as f32 % right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left % right as f32)
+                        }
+                        (left, right) => {
+                            return Err(Located::new(
+                                RunTimeError::Binary(op, left, right),
+                                pos.clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::Pow => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Float((left as f32).powf(right as f32)),
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left.powf(right)),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float((left as f32).powf(right))
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left.powf(right as f32))
+                        }
+                        (left, right) => {
+                            return Err(Located::new(
+                                RunTimeError::Binary(op, left, right),
+                                pos.clone(),
+                            ))
+                        }
+                    },
+                    
                 };
             }
             ByteCode::Unary { op, dst, right } => {
@@ -380,6 +489,7 @@ impl Interpreter {
                             return Err(Located::new(RunTimeError::Unary(op, right), pos.clone()))
                         }
                     },
+                    UnaryOperator::Not => Value::Bool(!bool::from(&right))
                 };
             }
             ByteCode::Field { dst, head, field } => {

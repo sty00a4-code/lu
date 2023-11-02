@@ -6,9 +6,9 @@ A light weight interpreted programming language wirtten in Rust
 
 ## Features
 - [x] path impl
-- [ ] binary and unary expressions
+- [x] binary and unary expressions
 - [x] vector and object creation
-- [ ] more binary operators
+- [x] most binary operators
 - [ ] control flow
   - [ ] if
   - [ ] while

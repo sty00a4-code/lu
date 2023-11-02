@@ -24,6 +24,17 @@ pub enum Token {
     Minus,
     Star,
     Slash,
+    Percent,
+    Exponent,
+    Exclamation,
+    Ampersand,
+    Pipe,
+    EQ,
+    NE,
+    LT,
+    GT,
+    LE,
+    GE,
 
     Let,
     Return
@@ -80,6 +91,17 @@ impl Display for Token {
             Token::Minus => write!(f, "-"),
             Token::Star => write!(f, "*"),
             Token::Slash => write!(f, "/"),
+            Token::Percent => write!(f, "%"),
+            Token::Exponent => write!(f, "^"),
+            Token::Exclamation => write!(f, "!"),
+            Token::Ampersand => write!(f, "&"),
+            Token::Pipe => write!(f, "|"),
+            Token::EQ => write!(f, "=="),
+            Token::NE => write!(f, "!="),
+            Token::LT => write!(f, "<"),
+            Token::GT => write!(f, ">"),
+            Token::LE => write!(f, "<="),
+            Token::GE => write!(f, ">="),
             Token::Let => write!(f, "let"),
             Token::Return => write!(f, "return"),
         }
@@ -106,13 +128,44 @@ impl Lexable for Token {
             ']' => Ok(Some(Located::new(Token::RBracket, pos))),
             '{' => Ok(Some(Located::new(Token::LBrace, pos))),
             '}' => Ok(Some(Located::new(Token::RBrace, pos))),
-            '=' => Ok(Some(Located::new(Token::Equal, pos))),
+            '=' => if lexer.get() == Some('=') {
+                pos.extend(&lexer.pos());
+                lexer.advance();
+                Ok(Some(Located::new(Token::EQ, pos)))
+            } else {
+                Ok(Some(Located::new(Token::Equal, pos)))
+            }
             '.' => Ok(Some(Located::new(Token::Dot, pos))),
             ',' => Ok(Some(Located::new(Token::Comma, pos))),
             '+' => Ok(Some(Located::new(Token::Plus, pos))),
             '-' => Ok(Some(Located::new(Token::Minus, pos))),
             '*' => Ok(Some(Located::new(Token::Star, pos))),
             '/' => Ok(Some(Located::new(Token::Slash, pos))),
+            '%' => Ok(Some(Located::new(Token::Percent, pos))),
+            '^' => Ok(Some(Located::new(Token::Exponent, pos))),
+            '!' => if lexer.get() == Some('=') {
+                pos.extend(&lexer.pos());
+                lexer.advance();
+                Ok(Some(Located::new(Token::NE, pos)))
+            } else {
+                Ok(Some(Located::new(Token::Exclamation, pos)))
+            }
+            '&' => Ok(Some(Located::new(Token::Ampersand, pos))),
+            '|' => Ok(Some(Located::new(Token::Pipe, pos))),
+            '<' => if lexer.get() == Some('=') {
+                pos.extend(&lexer.pos());
+                lexer.advance();
+                Ok(Some(Located::new(Token::LE, pos)))
+            } else {
+                Ok(Some(Located::new(Token::LT, pos)))
+            }
+            '>' => if lexer.get() == Some('=') {
+                pos.extend(&lexer.pos());
+                lexer.advance();
+                Ok(Some(Located::new(Token::GE, pos)))
+            } else {
+                Ok(Some(Located::new(Token::GT, pos)))
+            }
             '"' => {
                 let mut string = String::new();
                 while let Some(c) = lexer.get() {
