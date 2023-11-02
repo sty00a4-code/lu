@@ -162,10 +162,10 @@ impl Lexable for Token {
                     }
                 }
             }
-            c if c.is_ascii_alphanumeric() => {
+            c if c.is_ascii_alphanumeric() || c == '_' => {
                 let mut ident = String::from(c);
                 while let Some(c) = lexer.get() {
-                    if !c.is_ascii_alphanumeric() {
+                    if !c.is_ascii_alphanumeric() && c != '_' {
                         break;
                     }
                     ident.push(c);
