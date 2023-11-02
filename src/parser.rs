@@ -348,6 +348,7 @@ impl Compilable for Located<Chunk> {
             value: chunk,
             pos,
         } = self;
+        compiler.new_const(Value::String(Rc::new("__module".to_string())));
         for stat in chunk.0 {
             stat.compile(compiler)?;
         }

@@ -78,15 +78,19 @@ impl Interpreter {
     pub fn return_call(&mut self, value: Value) -> Option<CallFrame> {
         let call_frame = self.call_stack.pop();
         if let Some(call_frame) = &call_frame {
-            for _ in 0..call_frame.closure.registers {
-                self.stack.pop();
-            }
             while self.stack.len() > call_frame.stack_base {
                 self.stack.pop();
             }
             if let Some(dst) = call_frame.dst {
-                let register = self.location(dst).expect("location not found");
-                *register = value;
+                if self.call_stack.is_empty() {
+                    self.call_stack.push(call_frame.clone());
+                    let register = self.location(dst).expect("location not found");
+                    *register = value;
+                    self.call_stack.pop();
+                } else {
+                    let register = self.location(dst).expect("location not found");
+                    *register = value;
+                }
             }
         }
         call_frame
@@ -154,14 +158,14 @@ impl Interpreter {
         }
     }
 
-    pub fn run(&mut self, closure: Closure) -> Result<(), Located<RunTimeError>> {
-        self.enter_call(Rc::new(closure), vec![], None);
+    pub fn run(&mut self, closure: Closure) -> Result<Option<Value>, Located<RunTimeError>> {
+        self.enter_call(Rc::new(closure), vec![], Some(Location::Global(0)));
         loop {
             if self.step()? {
                 break;
             }
         }
-        Ok(())
+        Ok(self.globals.get("__module").cloned())
     }
     pub fn step(&mut self) -> Result<bool, Located<RunTimeError>> {
         let Located {
@@ -204,7 +208,7 @@ impl Interpreter {
                 amount,
                 dst,
             } => {
-                let func = self.source(func).expect("source not found").clone();
+                let func = self.source(func).cloned().unwrap_or_default();
                 let mut args = vec![];
                 for addr in start..start + amount {
                     args.push(
@@ -230,7 +234,7 @@ impl Interpreter {
                 }
             }
             ByteCode::Return { src } => {
-                let return_value = self.source(src).expect("source not found").clone();
+                let return_value = self.source(src).cloned().unwrap_or_default();
                 self.return_call(return_value);
                 if self.call_stack.is_empty() {
                     return Ok(true)
@@ -238,7 +242,7 @@ impl Interpreter {
             }
 
             ByteCode::Move { dst, src } => {
-                let value = self.source(src).expect("source not found").clone();
+                let value = self.source(src).cloned().unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = value;
             }
@@ -263,11 +267,11 @@ impl Interpreter {
                 *register = Value::Object(Rc::new(Object::default()));
             }
             ByteCode::SetField { dst, field, src } => {
-                let field = self.source(field).expect("source not found").clone();
+                let field = self.source(field).cloned().unwrap_or_default();
                 let Value::String(field) = field else {
                     return Err(Located::new(RunTimeError::InvalidField(Value::Object(Rc::default()), field), pos))
                 };
-                let value = self.source(src).expect("source not found").clone();
+                let value = self.source(src).cloned().unwrap_or_default();
                 let object = self.location(dst).expect("location not found");
                 if let Value::Object(object) = object {
                     if let Some(object) = Rc::get_mut(object) {
@@ -284,8 +288,8 @@ impl Interpreter {
                 left,
                 right,
             } => {
-                let left = self.source(left).expect("source not found").clone();
-                let right = self.source(right).expect("source not found").clone();
+                let left = self.source(left).cloned().unwrap_or_default();
+                let right = self.source(right).cloned().unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match op {
                     BinaryOperator::Add => match (left, right) {
@@ -355,7 +359,7 @@ impl Interpreter {
                 };
             }
             ByteCode::Unary { op, dst, right } => {
-                let right = self.source(right).expect("source not found").clone();
+                let right = self.source(right).cloned().unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match op {
                     UnaryOperator::Neg => match right {
@@ -368,8 +372,8 @@ impl Interpreter {
                 };
             }
             ByteCode::Field { dst, head, field } => {
-                let head = self.source(head).expect("source not found").clone();
-                let field = self.source(field).expect("source not found").clone();
+                let head = self.source(head).cloned().unwrap_or_default();
+                let field = self.source(field).cloned().unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match &head {
                     Value::Object(object) => match field {

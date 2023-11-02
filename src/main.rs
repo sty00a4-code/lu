@@ -61,7 +61,9 @@ fn main() {
         .with_globals(std_env())
         .run(main_closure)
     {
-        Ok(()) => {}
+        Ok(value) => if let Some(value) = value {
+            println!("{value}");
+        }
         Err(Located { value: err, pos }) => {
             eprintln!(
                 "ERROR {}:{}:{}: {err}",
@@ -77,16 +79,12 @@ fn main() {
 pub fn std_env() -> HashMap<String, Value> {
     let mut env = HashMap::new();
     env.insert(
+        "__module".into(),
+        Value::Null,
+    );
+    env.insert(
         "print".into(),
         Value::Function(FunctionKind::NativeFunction(_print)),
-    );
-    env.insert(
-        "abs".into(),
-        Value::Function(FunctionKind::NativeFunction(_abs)),
-    );
-    env.insert(
-        "time".into(),
-        Value::Function(FunctionKind::NativeFunction(_time)),
     );
     env
 }
