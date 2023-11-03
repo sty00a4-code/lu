@@ -375,7 +375,14 @@ impl Parsable<Token> for Statement {
                 }
                 expect_token!(parser: RParan);
                 let body = Block::parse(parser)?;
-                Ok(Located::new(Self::Function { path, parameters, body }, pos))
+                Ok(Located::new(
+                    Self::Function {
+                        path,
+                        parameters,
+                        body,
+                    },
+                    pos,
+                ))
             }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
         }
@@ -914,6 +921,7 @@ impl Compilable for Located<Statement> {
             } => {
                 let current_registers = compiler.current_registers;
                 let closure = Closure {
+                    path: compiler.path.clone(),
                     code: vec![],
                     consts: vec![],
                     registers: parameters.len(),
@@ -936,9 +944,9 @@ impl Compilable for Located<Statement> {
                 body.compile(compiler)?;
                 let closure = compiler.pop_closure().expect("no closure");
                 compiler.current_registers = current_registers;
-                let src = Source::Const(compiler.new_const(Value::Function(
-                    FunctionKind::Function(Rc::new(closure)),
-                )));
+                let src = Source::Const(
+                    compiler.new_const(Value::Function(FunctionKind::Function(Rc::new(closure)))),
+                );
                 match path {
                     Path::Ident(Ident(ident)) => {
                         let dst = compiler.get_local(&ident);
@@ -1164,6 +1172,7 @@ impl Compilable for Located<Atom> {
             Atom::Function { parameters, body } => {
                 let current_registers = compiler.current_registers;
                 let closure = Closure {
+                    path: compiler.path.clone(),
                     code: vec![],
                     consts: vec![],
                     registers: parameters.len(),

@@ -1,4 +1,8 @@
-use std::{fmt::Display, error::Error, num::{ParseIntError, ParseFloatError}};
+use std::{
+    error::Error,
+    fmt::Display,
+    num::{ParseFloatError, ParseIntError},
+};
 
 use oneparse::{lexer::*, position::Located};
 #[derive(Debug, Clone, PartialEq)]
@@ -51,7 +55,7 @@ pub enum LexError {
     BadCharacter(char),
     ParseIntError(ParseIntError),
     ParserFloatError(ParseFloatError),
-    UnclosedString
+    UnclosedString,
 }
 
 impl Token {
@@ -69,7 +73,7 @@ impl Token {
             "for" => Self::For,
             "in" => Self::In,
             "function" => Self::Function,
-            _ => Self::Ident(ident)
+            _ => Self::Ident(ident),
         }
     }
     pub fn name(&self) -> String {
@@ -149,12 +153,14 @@ impl Lexable for Token {
             ']' => Ok(Some(Located::new(Token::RBracket, pos))),
             '{' => Ok(Some(Located::new(Token::LBrace, pos))),
             '}' => Ok(Some(Located::new(Token::RBrace, pos))),
-            '=' => if lexer.get() == Some('=') {
-                pos.extend(&lexer.pos());
-                lexer.advance();
-                Ok(Some(Located::new(Token::EQ, pos)))
-            } else {
-                Ok(Some(Located::new(Token::Equal, pos)))
+            '=' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::EQ, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Equal, pos)))
+                }
             }
             '.' => Ok(Some(Located::new(Token::Dot, pos))),
             ',' => Ok(Some(Located::new(Token::Comma, pos))),
@@ -164,28 +170,34 @@ impl Lexable for Token {
             '/' => Ok(Some(Located::new(Token::Slash, pos))),
             '%' => Ok(Some(Located::new(Token::Percent, pos))),
             '^' => Ok(Some(Located::new(Token::Exponent, pos))),
-            '!' => if lexer.get() == Some('=') {
-                pos.extend(&lexer.pos());
-                lexer.advance();
-                Ok(Some(Located::new(Token::NE, pos)))
-            } else {
-                Ok(Some(Located::new(Token::Exclamation, pos)))
+            '!' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::NE, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Exclamation, pos)))
+                }
             }
             '&' => Ok(Some(Located::new(Token::Ampersand, pos))),
             '|' => Ok(Some(Located::new(Token::Pipe, pos))),
-            '<' => if lexer.get() == Some('=') {
-                pos.extend(&lexer.pos());
-                lexer.advance();
-                Ok(Some(Located::new(Token::LE, pos)))
-            } else {
-                Ok(Some(Located::new(Token::LT, pos)))
+            '<' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::LE, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::LT, pos)))
+                }
             }
-            '>' => if lexer.get() == Some('=') {
-                pos.extend(&lexer.pos());
-                lexer.advance();
-                Ok(Some(Located::new(Token::GE, pos)))
-            } else {
-                Ok(Some(Located::new(Token::GT, pos)))
+            '>' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::GE, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::GT, pos)))
+                }
             }
             '"' => {
                 let mut string = String::new();
@@ -198,7 +210,7 @@ impl Lexable for Token {
                 }
                 pos.extend(&lexer.pos());
                 if lexer.get() != Some('"') {
-                    return Err(Located::new(LexError::UnclosedString, pos))
+                    return Err(Located::new(LexError::UnclosedString, pos));
                 }
                 lexer.advance();
                 Ok(Some(Located::new(Token::String(string), pos)))
@@ -248,7 +260,7 @@ impl Lexable for Token {
                 }
                 Ok(Some(Located::new(Token::ident(ident), pos)))
             }
-            c => Err(Located::new(LexError::BadCharacter(c), pos))
+            c => Err(Located::new(LexError::BadCharacter(c), pos)),
         }
     }
 }
@@ -260,7 +272,6 @@ impl Display for LexError {
             LexError::ParseIntError(err) => write!(f, "{err}"),
             LexError::ParserFloatError(err) => write!(f, "{err}"),
             LexError::UnclosedString => write!(f, "unclosed string"),
-            
         }
     }
 }

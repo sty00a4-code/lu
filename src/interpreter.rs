@@ -26,9 +26,10 @@ pub enum Value {
 #[derive(Clone)]
 pub enum FunctionKind {
     Function(Rc<Closure>),
-    NativeFunction(NativeFunction)
+    NativeFunction(NativeFunction),
 }
-pub type NativeFunction = fn(&mut Interpreter, Vec<Value>, &Positon) -> Result<Option<Value>, Located<RunTimeError>>;
+pub type NativeFunction =
+    fn(&mut Interpreter, Vec<Value>, &Positon) -> Result<Option<Value>, Located<RunTimeError>>;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Object {
     pub map: HashMap<String, Value>,
@@ -47,6 +48,7 @@ pub struct CallFrame {
     pub ip: usize,
     pub stack_base: usize,
     pub dst: Option<Location>,
+    pub path: String,
 }
 
 pub const GLOBAL_NULL: &Value = &Value::Null;
@@ -70,6 +72,7 @@ impl Interpreter {
             ip: 0,
             stack_base: self.stack.len(),
             dst,
+            path: closure.path.clone()
         };
         for i in 0..call_frame.closure.registers {
             self.stack.push(args.get(i).cloned().unwrap_or_default());
@@ -140,7 +143,7 @@ impl Interpreter {
             Source::Global(addr) => {
                 let ident = match self.constant(addr)? {
                     Value::String(ident) => ident.clone(),
-                    _ => return None
+                    _ => return None,
                 };
                 self.globals.get(ident.as_ref())
             }
@@ -152,11 +155,11 @@ impl Interpreter {
             Location::Global(addr) => {
                 let ident = match self.constant(addr)? {
                     Value::String(ident) => ident.clone(),
-                    _ => return None
+                    _ => return None,
                 };
                 if !self.globals.contains_key(ident.as_ref()) {
                     self.globals.insert(ident.to_string(), Value::default());
-                } 
+                }
                 self.globals.get_mut(ident.as_ref())
             }
         }
@@ -169,7 +172,13 @@ impl Interpreter {
                 break;
             }
         }
-        Ok(self.globals.get("__module").cloned().and_then(|value| if value == Value::Null { None } else { Some(value) }))
+        Ok(self.globals.get("__module").cloned().and_then(|value| {
+            if value == Value::Null {
+                None
+            } else {
+                Some(value)
+            }
+        }))
     }
     pub fn step(&mut self) -> Result<bool, Located<RunTimeError>> {
         let Located {
@@ -198,7 +207,11 @@ impl Interpreter {
             }
             ByteCode::JumpIf { cond, addr, not } => {
                 let cond = self.source(cond).expect("source not found");
-                let cond = if not { !bool::from(cond) } else { bool::from(cond) };
+                let cond = if not {
+                    !bool::from(cond)
+                } else {
+                    bool::from(cond)
+                };
                 if cond {
                     let ip = &mut self
                         .current_call_frame_mut()
@@ -234,7 +247,7 @@ impl Interpreter {
                                 *register = value.unwrap_or_default();
                             }
                         }
-                    }
+                    },
                     value => return Err(Located::new(RunTimeError::NotCallable(value), pos)),
                 }
             }
@@ -242,7 +255,7 @@ impl Interpreter {
                 let return_value = self.source(src).cloned().unwrap_or_default();
                 self.return_call(return_value);
                 if self.call_stack.is_empty() {
-                    return Ok(true)
+                    return Ok(true);
                 }
             }
 
@@ -275,26 +288,40 @@ impl Interpreter {
                 let field = self.source(field).cloned().unwrap_or_default();
                 let value = self.source(src).cloned().unwrap_or_default();
                 match self.location(dst).expect("location not found") {
-                    Value::Object(object) => 
+                    Value::Object(object) => {
                         if let Value::String(field) = field {
                             if let Some(object) = Rc::get_mut(object) {
                                 object.map.insert(field.to_string(), value);
                             }
                         } else {
-                            return Err(Located::new(RunTimeError::InvalidField(Value::Object(object.clone()), field), pos))
+                            return Err(Located::new(
+                                RunTimeError::InvalidField(Value::Object(object.clone()), field),
+                                pos,
+                            ));
                         }
+                    }
                     Value::Vector(vector) => {
                         if let Value::Int(index) = field {
                             if let Some(vector) = Rc::get_mut(vector) {
-                                if let Some(old_value) = vector.get_mut(index.unsigned_abs() as usize) {
+                                if let Some(old_value) =
+                                    vector.get_mut(index.unsigned_abs() as usize)
+                                {
                                     *old_value = value;
                                 }
                             }
                         } else {
-                            return Err(Located::new(RunTimeError::InvalidField(Value::Vector(vector.clone()), field), pos))
+                            return Err(Located::new(
+                                RunTimeError::InvalidField(Value::Vector(vector.clone()), field),
+                                pos,
+                            ));
                         }
                     }
-                    value => return Err(Located::new(RunTimeError::InvalidFieldHead(value.clone()), pos))
+                    value => {
+                        return Err(Located::new(
+                            RunTimeError::InvalidFieldHead(value.clone()),
+                            pos,
+                        ))
+                    }
                 }
             }
 
@@ -308,16 +335,20 @@ impl Interpreter {
                 let right = self.source(right).cloned().unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match op {
-                    BinaryOperator::And => if bool::from(&left) {
-                        right
-                    } else {
-                        left
-                    },
-                    BinaryOperator::Or => if bool::from(&left) {
-                        left
-                    } else {
-                        right
-                    },
+                    BinaryOperator::And => {
+                        if bool::from(&left) {
+                            right
+                        } else {
+                            left
+                        }
+                    }
+                    BinaryOperator::Or => {
+                        if bool::from(&left) {
+                            left
+                        } else {
+                            right
+                        }
+                    }
                     BinaryOperator::EQ => Value::Bool(left == right),
                     BinaryOperator::NE => Value::Bool(left != right),
                     BinaryOperator::LT => match (left, right) {
@@ -326,9 +357,7 @@ impl Interpreter {
                         (Value::Int(left), Value::Float(right)) => {
                             Value::Bool((left as f32) < right)
                         }
-                        (Value::Float(left), Value::Int(right)) => {
-                            Value::Bool(left < right as f32)
-                        }
+                        (Value::Float(left), Value::Int(right)) => Value::Bool(left < right as f32),
                         (left, right) => {
                             return Err(Located::new(
                                 RunTimeError::Binary(op, left, right),
@@ -339,12 +368,8 @@ impl Interpreter {
                     BinaryOperator::GT => match (left, right) {
                         (Value::Int(left), Value::Int(right)) => Value::Bool(left > right),
                         (Value::Float(left), Value::Float(right)) => Value::Bool(left > right),
-                        (Value::Int(left), Value::Float(right)) => {
-                            Value::Bool(left as f32 > right)
-                        }
-                        (Value::Float(left), Value::Int(right)) => {
-                            Value::Bool(left > right as f32)
-                        }
+                        (Value::Int(left), Value::Float(right)) => Value::Bool(left as f32 > right),
+                        (Value::Float(left), Value::Int(right)) => Value::Bool(left > right as f32),
                         (left, right) => {
                             return Err(Located::new(
                                 RunTimeError::Binary(op, left, right),
@@ -417,7 +442,9 @@ impl Interpreter {
                         }
                     },
                     BinaryOperator::Div => match (left, right) {
-                        (Value::Int(left), Value::Int(right)) => Value::Float(left as f32 / right as f32),
+                        (Value::Int(left), Value::Int(right)) => {
+                            Value::Float(left as f32 / right as f32)
+                        }
                         (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
                         (Value::Int(left), Value::Float(right)) => {
                             Value::Float(left as f32 / right)
@@ -465,7 +492,9 @@ impl Interpreter {
                         }
                     },
                     BinaryOperator::Pow => match (left, right) {
-                        (Value::Int(left), Value::Int(right)) => Value::Float((left as f32).powf(right as f32)),
+                        (Value::Int(left), Value::Int(right)) => {
+                            Value::Float((left as f32).powf(right as f32))
+                        }
                         (Value::Float(left), Value::Float(right)) => Value::Float(left.powf(right)),
                         (Value::Int(left), Value::Float(right)) => {
                             Value::Float((left as f32).powf(right))
@@ -480,7 +509,6 @@ impl Interpreter {
                             ))
                         }
                     },
-                    
                 };
             }
             ByteCode::Unary { op, dst, right } => {
@@ -494,7 +522,7 @@ impl Interpreter {
                             return Err(Located::new(RunTimeError::Unary(op, right), pos.clone()))
                         }
                     },
-                    UnaryOperator::Not => Value::Bool(!bool::from(&right))
+                    UnaryOperator::Not => Value::Bool(!bool::from(&right)),
                 };
             }
             ByteCode::Field { dst, head, field } => {
@@ -503,14 +531,23 @@ impl Interpreter {
                 let register = self.location(dst).expect("location not found");
                 *register = match &head {
                     Value::Object(object) => match field {
-                        Value::String(field) => object.map.get(field.as_str()).cloned().unwrap_or_default(),
-                        field => return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
-                    }
+                        Value::String(field) => {
+                            object.map.get(field.as_str()).cloned().unwrap_or_default()
+                        }
+                        field => {
+                            return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
+                        }
+                    },
                     Value::Vector(vector) => match field {
-                        Value::Int(index) => vector.get(index as u32 as usize).cloned().unwrap_or_default(),
-                        field => return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
-                    }
-                    _ => return Err(Located::new(RunTimeError::InvalidFieldHead(head), pos))
+                        Value::Int(index) => vector
+                            .get(index as u32 as usize)
+                            .cloned()
+                            .unwrap_or_default(),
+                        field => {
+                            return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
+                        }
+                    },
+                    _ => return Err(Located::new(RunTimeError::InvalidFieldHead(head), pos)),
                 };
             }
         }
@@ -566,7 +603,9 @@ impl Debug for Value {
 impl Display for FunctionKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FunctionKind::Function(closure) => write!(f, "{:?}", closure.as_ref() as *const Closure),
+            FunctionKind::Function(closure) => {
+                write!(f, "{:?}", closure.as_ref() as *const Closure)
+            }
             FunctionKind::NativeFunction(func) => write!(f, "{:?}", func as *const NativeFunction),
         }
     }
@@ -729,9 +768,10 @@ impl Display for RunTimeError {
             RunTimeError::Unary(op, right) => write!(f, "cannot perform {op:?} on {right:?}"),
             RunTimeError::NotCallable(value) => write!(f, "cannot call {value:?}"),
             RunTimeError::InvalidFieldHead(head) => write!(f, "cannot get field of {head:?}"),
-            RunTimeError::InvalidField(head, field) => write!(f, "cannot get field of {head:?} with {field:?}"),
+            RunTimeError::InvalidField(head, field) => {
+                write!(f, "cannot get field of {head:?} with {field:?}")
+            }
             RunTimeError::Custom(string) => write!(f, "{string}"),
-            
         }
     }
 }

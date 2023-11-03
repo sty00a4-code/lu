@@ -41,7 +41,7 @@ fn main() {
     };
     // dbg!(&ast);
     let main_closure = {
-        let mut compiler = Compiler::default();
+        let mut compiler = Compiler::new(args.path.clone());
         match ast.compile(&mut compiler) {
             Ok(()) => {}
             Err(Located { value: err, pos }) => {
@@ -61,8 +61,10 @@ fn main() {
         .with_globals(std_env::std_env())
         .run(Rc::new(main_closure))
     {
-        Ok(value) => if let Some(value) = value {
-            println!("{value}");
+        Ok(value) => {
+            if let Some(value) = value {
+                println!("{value}");
+            }
         }
         Err(Located { value: err, pos }) => {
             eprintln!(
@@ -75,5 +77,3 @@ fn main() {
         }
     }
 }
-
-

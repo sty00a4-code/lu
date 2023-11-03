@@ -86,7 +86,10 @@ pub fn _error(
     if args.is_empty() {
         return Ok(None);
     }
-    Err(Located::new(RunTimeError::Custom(args.remove(0).to_string()), pos.clone()))
+    Err(Located::new(
+        RunTimeError::Custom(args.remove(0).to_string()),
+        pos.clone(),
+    ))
 }
 pub fn _exit(
     _: &mut Interpreter,
@@ -94,16 +97,12 @@ pub fn _exit(
     _: &Positon,
 ) -> Result<Option<Value>, Located<RunTimeError>> {
     let code = args.get(0).cloned().unwrap_or(Value::Int(0));
-    std::process::exit(if let Value::Int(code) = code {
-        code
-    } else {
-        0
-    });
+    std::process::exit(if let Value::Int(code) = code { code } else { 0 });
 }
 pub fn _math_abs(
     _: &mut Interpreter,
     mut args: Vec<Value>,
-    _: &Positon
+    _: &Positon,
 ) -> Result<Option<Value>, Located<RunTimeError>> {
     if args.is_empty() {
         return Ok(None);
@@ -118,7 +117,7 @@ pub fn _math_abs(
 pub fn _time_now(
     _: &mut Interpreter,
     _: Vec<Value>,
-    _: &Positon
+    _: &Positon,
 ) -> Result<Option<Value>, Located<RunTimeError>> {
     use std::time::{SystemTime, UNIX_EPOCH};
     let start = SystemTime::now();

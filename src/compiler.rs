@@ -1,9 +1,9 @@
-use std::{collections::HashMap, rc::Rc, fmt::Display};
+use std::{collections::HashMap, fmt::Display, rc::Rc};
 
 use oneparse::position::{Located, Positon};
 
 use crate::{
-    interpreter::{Value, FunctionKind},
+    interpreter::{FunctionKind, Value},
     parser::{BinaryOperator, UnaryOperator},
 };
 
@@ -42,7 +42,7 @@ pub enum ByteCode {
     Vector {
         dst: Location,
         start: usize,
-        amount: usize
+        amount: usize,
     },
     Object {
         dst: Location,
@@ -67,8 +67,8 @@ pub enum ByteCode {
     Field {
         dst: Location,
         head: Source,
-        field: Source
-    }
+        field: Source,
+    },
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
@@ -80,16 +80,18 @@ pub enum Source {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Location {
     Register(usize),
-    Global(usize)
+    Global(usize),
 }
 #[derive(Debug, Clone, Default)]
 pub struct Closure {
     pub code: Vec<Located<ByteCode>>,
     pub consts: Vec<Value>,
     pub registers: usize,
+    pub path: String,
 }
 
 pub struct Compiler {
+    pub path: String,
     pub closures: Vec<Closure>,
 
     pub current_registers: usize,
@@ -101,16 +103,15 @@ pub struct Scope {
     register_base: usize,
 }
 
-impl Default for Compiler {
-    fn default() -> Self {
+impl Compiler {
+    pub fn new(path: String) -> Self {
         Self {
-            closures: vec![Closure::default()],
+            closures: vec![Closure { code: vec![], consts: vec![], registers: 0, path: path.clone() }],
+            path,
             current_registers: 0,
             scope_stacks: vec![vec![Scope::default()]],
         }
     }
-}
-impl Compiler {
     pub fn push_closure(&mut self, closure: Closure) {
         self.closures.push(closure);
         self.scope_stacks.push(vec![Scope::default()]);
@@ -174,24 +175,21 @@ impl Compiler {
     }
     pub fn push_scope(&mut self) {
         let registers = self.get_closure().expect("no current closure").registers;
-        let scope_stack = self
-            .get_scope_stack_mut()
-            .expect("no current scope stack");
-        scope_stack.push(Scope { locals: HashMap::new(), register_base: registers });
+        let scope_stack = self.get_scope_stack_mut().expect("no current scope stack");
+        scope_stack.push(Scope {
+            locals: HashMap::new(),
+            register_base: registers,
+        });
     }
     pub fn pop_scope(&mut self) {
-        let scope_stack = self
-            .get_scope_stack_mut()
-            .expect("no current scope stack");
+        let scope_stack = self.get_scope_stack_mut().expect("no current scope stack");
         if let Some(scope) = scope_stack.pop() {
             self.current_registers = scope.register_base;
         }
     }
     pub fn new_local(&mut self, ident: String) -> usize {
         let register = self.new_register();
-        let scope_stack = self
-            .get_scope_stack_mut()
-            .expect("no current scope stack");
+        let scope_stack = self.get_scope_stack_mut().expect("no current scope stack");
         let scope = scope_stack
             .last_mut()
             .expect("no scope on current scope stack");
@@ -199,12 +197,10 @@ impl Compiler {
         register
     }
     pub fn get_local(&mut self, ident: &str) -> Location {
-        let scope_stack = self
-            .get_scope_stack()
-            .expect("no current scope stack");
+        let scope_stack = self.get_scope_stack().expect("no current scope stack");
         for scope in scope_stack.iter().rev() {
             if let Some(addr) = scope.get_local(ident) {
-                return Location::Register(*addr)
+                return Location::Register(*addr);
             }
         }
         Location::Global(self.new_const(Value::String(Rc::new(ident.to_string()))))
@@ -252,46 +248,117 @@ impl From<Location> for usize {
 
 impl Source {
     pub fn display_code(&self, closure: &Closure) -> String {
-        format!("src({})", match self {
-            Source::Register(register) => format!("reg@{register}"),
-            Source::Const(addr) => format!("const@{addr}={:?}", closure.consts.get(*addr).cloned().unwrap_or_default()),
-            Source::Null => Value::Null.to_string(),
-            Source::Global(addr) => format!("glob@{addr}={:?}", closure.consts.get(*addr).cloned().unwrap_or_default()),
-        })
-    } 
+        format!(
+            "src({})",
+            match self {
+                Source::Register(register) => format!("reg@{register}"),
+                Source::Const(addr) => format!(
+                    "const@{addr}={:?}",
+                    closure.consts.get(*addr).cloned().unwrap_or_default()
+                ),
+                Source::Null => Value::Null.to_string(),
+                Source::Global(addr) => format!(
+                    "glob@{addr}={:?}",
+                    closure.consts.get(*addr).cloned().unwrap_or_default()
+                ),
+            }
+        )
+    }
 }
 impl Location {
     pub fn display_code(&self, closure: &Closure) -> String {
-        format!("loc({})", match self {
-            Location::Register(register) => format!("reg@{register}"),
-            Location::Global(addr) => format!("glob@{addr}={:?}", closure.consts.get(*addr).cloned().unwrap_or_default()),
-        })
+        format!(
+            "loc({})",
+            match self {
+                Location::Register(register) => format!("reg@{register}"),
+                Location::Global(addr) => format!(
+                    "glob@{addr}={:?}",
+                    closure.consts.get(*addr).cloned().unwrap_or_default()
+                ),
+            }
+        )
     }
 }
 impl Display for Closure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "closure at {:?}, registers #{}", self as *const Closure, self.registers)?;
-        for (addr, Located { value: bytecode, pos: _ }) in self.code.iter().enumerate() {
-            writeln!(f, "\t[{addr}] {}", match bytecode {
-                ByteCode::None => "none".to_string(),
-                ByteCode::Halt => "halt".to_string(),
-                ByteCode::Jump { addr } => format!("jump addr {addr}"),
-                ByteCode::JumpIf { cond, addr, not } => if *not {
-                    format!("jump if not cond {} addr {addr}", cond.display_code(self))
-                } else {
-                    format!("jump if cond {} addr {addr}", cond.display_code(self))
+        writeln!(
+            f,
+            "closure at {:?}, registers #{}, from {:?}",
+            self as *const Closure, self.registers, self.path
+        )?;
+        for (
+            addr,
+            Located {
+                value: bytecode,
+                pos: _,
+            },
+        ) in self.code.iter().enumerate()
+        {
+            writeln!(
+                f,
+                "\t[{addr}] {}",
+                match bytecode {
+                    ByteCode::None => "none".to_string(),
+                    ByteCode::Halt => "halt".to_string(),
+                    ByteCode::Jump { addr } => format!("jump addr {addr}"),
+                    ByteCode::JumpIf { cond, addr, not } =>
+                        if *not {
+                            format!("jump if not cond {} addr {addr}", cond.display_code(self))
+                        } else {
+                            format!("jump if cond {} addr {addr}", cond.display_code(self))
+                        },
+                    ByteCode::Call {
+                        func,
+                        start,
+                        amount,
+                        dst,
+                    } => format!(
+                        "call {} start {start} amount {amount} dst {:?}",
+                        func.display_code(self),
+                        dst.map(|loc| loc.display_code(self))
+                    ),
+                    ByteCode::Return { src } => format!("return src {}", src.display_code(self)),
+                    ByteCode::Move { dst, src } => format!(
+                        "move dst {} src {}",
+                        dst.display_code(self),
+                        src.display_code(self)
+                    ),
+                    ByteCode::Null { dst } => format!("null dst {}", dst.display_code(self)),
+                    ByteCode::Vector { dst, start, amount } => format!(
+                        "vector dst {} start {start} amount {amount}",
+                        dst.display_code(self)
+                    ),
+                    ByteCode::Object { dst } => format!("object dst {}", dst.display_code(self)),
+                    ByteCode::SetField { dst, field, src } => format!(
+                        "setfield dst {} field {} src {}",
+                        dst.display_code(self),
+                        field.display_code(self),
+                        src.display_code(self)
+                    ),
+                    ByteCode::Binary {
+                        op,
+                        dst,
+                        left,
+                        right,
+                    } => format!(
+                        "binary {op:?} dst {} right {} left {}",
+                        dst.display_code(self),
+                        left.display_code(self),
+                        right.display_code(self)
+                    ),
+                    ByteCode::Unary { op, dst, right } => format!(
+                        "unary {op:?} dst {} right {}",
+                        dst.display_code(self),
+                        right.display_code(self)
+                    ),
+                    ByteCode::Field { dst, head, field } => format!(
+                        "field dst {} head {} field {}",
+                        dst.display_code(self),
+                        head.display_code(self),
+                        field.display_code(self)
+                    ),
                 }
-                ByteCode::Call { func, start, amount, dst } => format!("call {} start {start} amount {amount} dst {:?}", func.display_code(self), dst.map(|loc| loc.display_code(self))),
-                ByteCode::Return { src } => format!("return src {}", src.display_code(self)),
-                ByteCode::Move { dst, src } => format!("move dst {} src {}", dst.display_code(self), src.display_code(self)),
-                ByteCode::Null { dst } => format!("null dst {}", dst.display_code(self)),
-                ByteCode::Vector { dst, start, amount } => format!("vector dst {} start {start} amount {amount}", dst.display_code(self)),
-                ByteCode::Object { dst } => format!("object dst {}", dst.display_code(self)),
-                ByteCode::SetField { dst, field, src } => format!("setfield dst {} field {} src {}", dst.display_code(self), field.display_code(self), src.display_code(self)),
-                ByteCode::Binary { op, dst, left, right } => format!("binary {op:?} dst {} right {} left {}", dst.display_code(self), left.display_code(self), right.display_code(self)),
-                ByteCode::Unary { op, dst, right } => format!("unary {op:?} dst {} right {}", dst.display_code(self), right.display_code(self)),
-                ByteCode::Field { dst, head, field } => format!("field dst {} head {} field {}", dst.display_code(self), head.display_code(self), field.display_code(self)),
-            })?;
+            )?;
         }
         writeln!(f, "constants #{}", self.consts.len())?;
         for (addr, constant) in self.consts.iter().enumerate() {
