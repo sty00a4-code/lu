@@ -44,6 +44,7 @@ pub enum Token {
     While,
     For,
     In,
+    Function,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum LexError {
@@ -67,6 +68,7 @@ impl Token {
             "while" => Self::While,
             "for" => Self::For,
             "in" => Self::In,
+            "function" => Self::Function,
             _ => Self::Ident(ident)
         }
     }
@@ -122,6 +124,7 @@ impl Display for Token {
             Token::While => write!(f, "while"),
             Token::For => write!(f, "for"),
             Token::In => write!(f, "in"),
+            Token::Function => write!(f, "function"),
         }
     }
 }

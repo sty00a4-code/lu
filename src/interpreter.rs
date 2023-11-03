@@ -162,8 +162,8 @@ impl Interpreter {
         }
     }
 
-    pub fn run(&mut self, closure: Closure) -> Result<Option<Value>, Located<RunTimeError>> {
-        self.enter_call(Rc::new(closure), vec![], Some(Location::Global(0)));
+    pub fn run(&mut self, closure: Rc<Closure>) -> Result<Option<Value>, Located<RunTimeError>> {
+        self.enter_call(closure, vec![], Some(Location::Global(0)));
         loop {
             if self.step()? {
                 break;
