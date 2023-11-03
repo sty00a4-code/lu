@@ -56,7 +56,7 @@ fn main() {
         }
         compiler.closures[0].clone()
     };
-    println!("{}", &main_closure);
+    // println!("{}", &main_closure);
     match Interpreter::default()
         .with_globals(std_env::std_env())
         .run(main_closure)
