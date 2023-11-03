@@ -1021,20 +1021,10 @@ impl Compilable for Located<Expression> {
                 Ok(Source::Register(dst))
             }
             Expression::Call { func, args } => {
-                let func = func.compile(compiler)?;
                 let dst = compiler.new_register();
-                compiler.write(
-                    ByteCode::Move {
-                        dst: Location::Register(dst),
-                        src: func,
-                    },
-                    pos.clone(),
-                );
+                let func = func.compile(compiler)?;
                 let amount = args.len();
-                let start = compiler
-                    .get_closure()
-                    .expect("no current closure")
-                    .registers;
+                let start = compiler.current_registers;
                 for _ in start..start + amount {
                     compiler.new_register();
                 }
@@ -1170,6 +1160,7 @@ impl Compilable for Located<Atom> {
                 Ok(Source::Register(dst))
             }
             Atom::Function { parameters, body } => {
+                // FIXME: register reset not working, move this code to compiler.new_function(parameters, body)
                 let current_registers = compiler.current_registers;
                 let closure = Closure {
                     path: compiler.path.clone(),
