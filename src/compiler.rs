@@ -92,6 +92,7 @@ pub struct Closure {
 pub struct Compiler {
     pub closures: Vec<Closure>,
 
+    pub current_registers: usize,
     scope_stacks: Vec<Vec<Scope>>,
     cp: usize,
 }
@@ -105,6 +106,7 @@ impl Default for Compiler {
     fn default() -> Self {
         Self {
             closures: vec![Closure::default()],
+            current_registers: 0,
             scope_stacks: vec![vec![Scope::default()]],
             cp: 0,
         }
@@ -137,6 +139,10 @@ impl Compiler {
     pub fn get_scope_mut(&mut self) -> Option<&mut Scope> {
         self.get_scope_stack_mut()?.last_mut()
     }
+    pub fn addr(&self) -> usize {
+        let closure = self.get_closure().expect("no current closure");
+        closure.code.len()
+    }
     pub fn write(&mut self, bytecode: ByteCode, pos: Positon) -> usize {
         let closure = self.get_closure_mut().expect("no current closure");
         let addr = closure.code.len();
@@ -159,9 +165,13 @@ impl Compiler {
         addr
     }
     pub fn new_register(&mut self) -> usize {
+        let register = self.current_registers;
+        self.current_registers += 1;
+        let current_registers = self.current_registers;
         let closure = self.get_closure_mut().expect("no current closure");
-        let register = closure.registers;
-        closure.registers += 1;
+        if closure.registers < current_registers {
+            closure.registers = current_registers;
+        }
         register
     }
     pub fn push_scope(&mut self) {
@@ -176,8 +186,7 @@ impl Compiler {
             .get_scope_stack_mut()
             .expect("no current scope stack");
         if let Some(scope) = scope_stack.pop() {
-            let closure = self.get_closure_mut().expect("no current closure");
-            closure.registers = scope.register_base;
+            self.current_registers = scope.register_base;
         }
     }
     pub fn new_local(&mut self, ident: String) -> usize {
@@ -263,13 +272,17 @@ impl Location {
 }
 impl Display for Closure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "closure at {:?}", self as *const Closure)?;
+        writeln!(f, "closure at {:?}, registers #{}", self as *const Closure, self.registers)?;
         for (addr, Located { value: bytecode, pos: _ }) in self.code.iter().enumerate() {
             writeln!(f, "\t[{addr}] {}", match bytecode {
                 ByteCode::None => "none".to_string(),
                 ByteCode::Halt => "halt".to_string(),
                 ByteCode::Jump { addr } => format!("jump {addr}"),
-                ByteCode::JumpIf { cond, addr, not } => format!("jump {} {addr} not={not}", cond.display_code(self)),
+                ByteCode::JumpIf { cond, addr, not } => if *not {
+                    format!("jump not {} {addr}", cond.display_code(self))
+                } else {
+                    format!("jump {} {addr}", cond.display_code(self))
+                }
                 ByteCode::Call { func, start, amount, dst } => format!("call {} {start} {amount} {:?}", func.display_code(self), dst.map(|loc| loc.display_code(self))),
                 ByteCode::Return { src } => format!("return {}", src.display_code(self)),
                 ByteCode::Move { dst, src } => format!("move {} {}", dst.display_code(self), src.display_code(self)),
@@ -282,7 +295,10 @@ impl Display for Closure {
                 ByteCode::Field { dst, head, field } => format!("field {} {} {}", dst.display_code(self), head.display_code(self), field.display_code(self)),
             })?;
         }
-
+        writeln!(f, "consts")?;
+        for (addr, constant) in self.consts.iter().enumerate() {
+            writeln!(f, "\t[{addr}] = {constant:?}")?;
+        }
         Ok(())
     }
 }

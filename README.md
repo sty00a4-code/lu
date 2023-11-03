@@ -10,7 +10,7 @@ A light weight interpreted programming language wirtten in Rust
 - [x] vector and object creation
 - [x] most binary operators
 - [ ] control flow
-  - [ ] if
+  - [x] if
   - [ ] while
   - [ ] for
   - [ ] for in

@@ -37,7 +37,13 @@ pub enum Token {
     GE,
 
     Let,
-    Return
+    Return,
+    Do,
+    If,
+    Else,
+    While,
+    For,
+    In,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum LexError {
@@ -55,6 +61,12 @@ impl Token {
             "false" => Self::Bool(false),
             "let" => Self::Let,
             "return" => Self::Return,
+            "do" => Self::Do,
+            "if" => Self::If,
+            "else" => Self::Else,
+            "while" => Self::While,
+            "for" => Self::For,
+            "in" => Self::In,
             _ => Self::Ident(ident)
         }
     }
@@ -104,6 +116,12 @@ impl Display for Token {
             Token::GE => write!(f, ">="),
             Token::Let => write!(f, "let"),
             Token::Return => write!(f, "return"),
+            Token::Do => write!(f, "do"),
+            Token::If => write!(f, "if"),
+            Token::Else => write!(f, "else"),
+            Token::While => write!(f, "while"),
+            Token::For => write!(f, "for"),
+            Token::In => write!(f, "in"),
         }
     }
 }

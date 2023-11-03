@@ -29,6 +29,21 @@ pub enum Statement {
         func: Located<Path>,
         args: Vec<Located<Expression>>,
     },
+    If {
+        cond: Located<Expression>,
+        case: Located<Block>,
+        else_case: Option<Located<Block>>,
+    },
+    While {
+        cond: Located<Expression>,
+        body: Located<Block>,
+    },
+    For {
+        ident: Located<Ident>,
+        iter: Located<Expression>,
+        body: Located<Block>,
+    },
+    Break,
     Return(Located<Expression>),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -73,11 +88,11 @@ pub enum Expression {
     },
     Field {
         head: Box<Located<Self>>,
-        field: Located<Ident>
+        field: Located<Ident>,
     },
     Index {
         head: Box<Located<Self>>,
-        index: Box<Located<Expression>>
+        index: Box<Located<Expression>>,
     },
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -97,11 +112,11 @@ pub enum Path {
     Ident(Ident),
     Field {
         head: Box<Located<Self>>,
-        field: Located<Ident>
+        field: Located<Ident>,
     },
     Index {
         head: Box<Located<Self>>,
-        index: Box<Located<Expression>>
+        index: Box<Located<Expression>>,
     },
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -134,15 +149,12 @@ impl<'a> BinaryOperator {
             Token::Slash => Some(Self::Div),
             Token::Percent => Some(Self::Mod),
             Token::Exponent => Some(Self::Pow),
-            _ => None
+            _ => None,
         }
     }
 }
 impl<'a> UnaryOperator {
-    pub const LAYER: &'a [&'a [Self]] = &[
-        &[Self::Not],
-        &[Self::Neg],
-    ];
+    pub const LAYER: &'a [&'a [Self]] = &[&[Self::Not], &[Self::Neg]];
     pub fn layer(layer: usize) -> Option<&'a &'a [Self]> {
         Self::LAYER.get(layer)
     }
@@ -150,7 +162,7 @@ impl<'a> UnaryOperator {
         match token {
             Token::Exclamation => Some(Self::Not),
             Token::Minus => Some(Self::Neg),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -235,21 +247,35 @@ impl Parsable<Token> for Statement {
         {
             let path = Path::parse(parser)?;
             let mut pos = path.pos.clone();
-            let Located { value: token, pos: token_pos } = expect!(parser);
+            let Located {
+                value: token,
+                pos: token_pos,
+            } = expect!(parser);
             return match token {
                 Token::LParan => {
                     let mut args = vec![];
-                    while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+                    while let Some(Located {
+                        value: token,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
                         if token == &Token::RParan {
                             break;
                         }
                         args.push(Expression::parse(parser)?);
-                        if let Some(Located { value: Token::RParan, pos: _ }) = parser.token_ref() {
+                        if let Some(Located {
+                            value: Token::RParan,
+                            pos: _,
+                        }) = parser.token_ref()
+                        {
                             break;
                         }
                         expect_token!(parser: Comma);
                     }
-                    let Located { value: _, pos: end_pos } = expect_token!(parser: RParan);
+                    let Located {
+                        value: _,
+                        pos: end_pos,
+                    } = expect_token!(parser: RParan);
                     pos.extend(&end_pos);
                     Ok(Located::new(Statement::Call { func: path, args }, pos))
                 }
@@ -258,8 +284,8 @@ impl Parsable<Token> for Statement {
                     pos.extend(&expr.pos);
                     Ok(Located::new(Self::Assign { path, expr }, pos))
                 }
-                token => Err(Located::new(ParserError::UnexpectedToken(token), token_pos))
-            }
+                token => Err(Located::new(ParserError::UnexpectedToken(token), token_pos)),
+            };
         }
         let Located {
             value: token,
@@ -278,17 +304,40 @@ impl Parsable<Token> for Statement {
                 pos.extend(&expr.pos);
                 Ok(Located::new(Self::Return(expr), pos))
             }
+            Token::If => {
+                let cond = Expression::parse(parser)?;
+                let case = Block::parse(parser)?;
+                let mut else_case = None;
+                if let Some(Located { value: Token::Else, pos: _ }) = parser.token_ref() {
+                    parser.token();
+                    else_case = Some(if let Some(Located { value: Token::If, pos: _ }) = parser.token_ref() {
+                        let stat = Self::parse(parser)?;
+                        let stat_pos = stat.pos.clone();
+                        Located::new(Block(vec![stat]), stat_pos)
+                    } else {
+                        Block::parse(parser)?
+                    });
+                }
+                Ok(Located::new(Self::If { cond, case, else_case }, pos))
+            }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
         }
     }
 }
 impl Expression {
-    pub fn binary(parser: &mut Parser<Token>, layer: usize) -> Result<Located<Self>, Located<ParserError>> {
+    pub fn binary(
+        parser: &mut Parser<Token>,
+        layer: usize,
+    ) -> Result<Located<Self>, Located<ParserError>> {
         let Some(ops) = BinaryOperator::layer(layer) else {
-            return Self::unary(parser, 0)
+            return Self::unary(parser, 0);
         };
         let mut left = Self::binary(parser, layer + 1)?;
-        while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+        while let Some(Located {
+            value: token,
+            pos: _,
+        }) = parser.token_ref()
+        {
             let Some(op) = BinaryOperator::token(token) else {
                 break;
             };
@@ -299,21 +348,41 @@ impl Expression {
             let mut pos = left.pos.clone();
             let right = Self::binary(parser, layer + 1)?;
             pos.extend(&right.pos);
-            left = Located::new(Self::Binary { op, left: Box::new(left), right: Box::new(right) }, pos);
+            left = Located::new(
+                Self::Binary {
+                    op,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                pos,
+            );
         }
         Ok(left)
     }
-    pub fn unary(parser: &mut Parser<Token>, layer: usize) -> Result<Located<Self>, Located<ParserError>> {
+    pub fn unary(
+        parser: &mut Parser<Token>,
+        layer: usize,
+    ) -> Result<Located<Self>, Located<ParserError>> {
         let Some(ops) = UnaryOperator::layer(layer) else {
-            return Self::field(parser)
+            return Self::field(parser);
         };
-        if let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+        if let Some(Located {
+            value: token,
+            pos: _,
+        }) = parser.token_ref()
+        {
             if let Some(op) = UnaryOperator::token(token) {
                 if ops.contains(&op) {
                     let Located { value: _, mut pos } = parser.token().unwrap();
                     let right = Self::unary(parser, layer)?;
                     pos.extend(&right.pos);
-                    return Ok(Located::new(Self::Unary { op, right: Box::new(right) }, pos))
+                    return Ok(Located::new(
+                        Self::Unary {
+                            op,
+                            right: Box::new(right),
+                        },
+                        pos,
+                    ));
                 }
             }
         }
@@ -321,45 +390,79 @@ impl Expression {
     }
     pub fn field(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
         let mut head = Self::call(parser)?;
-        while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+        while let Some(Located {
+            value: token,
+            pos: _,
+        }) = parser.token_ref()
+        {
             match token {
                 Token::Dot => {
                     parser.token();
                     let field = Ident::parse(parser)?;
                     let mut pos = head.pos.clone();
                     pos.extend(&field.pos);
-                    head = Located::new(Self::Field { head: Box::new(head), field }, pos)
+                    head = Located::new(
+                        Self::Field {
+                            head: Box::new(head),
+                            field,
+                        },
+                        pos,
+                    )
                 }
                 Token::LBracket => {
                     parser.token();
                     let index = Expression::parse(parser)?;
-                    let Located { value: _, pos: end_pos } = expect_token!(parser: RBracket);
+                    let Located {
+                        value: _,
+                        pos: end_pos,
+                    } = expect_token!(parser: RBracket);
                     let mut pos = head.pos.clone();
                     pos.extend(&end_pos);
-                    head = Located::new(Self::Index { head: Box::new(head), index: Box::new(index) }, pos)
+                    head = Located::new(
+                        Self::Index {
+                            head: Box::new(head),
+                            index: Box::new(index),
+                        },
+                        pos,
+                    )
                 }
-                _ => break
+                _ => break,
             }
         }
         Ok(head)
     }
     pub fn call(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
         let atom = Atom::parse(parser)?;
-        if let Some(Located { value: Token::LParan, pos: _ }) = parser.token_ref() {
+        if let Some(Located {
+            value: Token::LParan,
+            pos: _,
+        }) = parser.token_ref()
+        {
             parser.token();
             let mut pos = atom.pos.clone();
             let mut args = vec![];
-            while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+            while let Some(Located {
+                value: token,
+                pos: _,
+            }) = parser.token_ref()
+            {
                 if token == &Token::RParan {
                     break;
                 }
                 args.push(Expression::parse(parser)?);
-                if let Some(Located { value: Token::RParan, pos: _ }) = parser.token_ref() {
+                if let Some(Located {
+                    value: Token::RParan,
+                    pos: _,
+                }) = parser.token_ref()
+                {
                     break;
                 }
                 expect_token!(parser: Comma);
             }
-            let Located { value: _, pos: end_pos } = expect_token!(parser: RParan);
+            let Located {
+                value: _,
+                pos: end_pos,
+            } = expect_token!(parser: RParan);
             pos.extend(&end_pos);
             Ok(Located::new(Self::Call { func: atom, args }, pos))
         } else {
@@ -376,10 +479,17 @@ impl Parsable<Token> for Expression {
 impl Parsable<Token> for Atom {
     type Error = ParserError;
     fn parse(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<Self::Error>> {
-        if let Some(Located { value: Token::Ident(_), pos: _ }) = parser.token_ref() {
-            return Ok(Path::parse(parser)?.map(Self::Path))
+        if let Some(Located {
+            value: Token::Ident(_),
+            pos: _,
+        }) = parser.token_ref()
+        {
+            return Ok(Path::parse(parser)?.map(Self::Path));
         }
-        let Located { value: token, mut pos } = expect!(parser);
+        let Located {
+            value: token,
+            mut pos,
+        } = expect!(parser);
         match token {
             Token::Null => Ok(Located::new(Self::Null, pos)),
             Token::Int(v) => Ok(Located::new(Self::Int(v), pos)),
@@ -388,29 +498,47 @@ impl Parsable<Token> for Atom {
             Token::String(v) => Ok(Located::new(Self::String(v), pos)),
             Token::LParan => {
                 let expr = Expression::parse(parser)?;
-                let Located { value: _, pos: end_pos } = expect_token!(parser : RParan);
+                let Located {
+                    value: _,
+                    pos: end_pos,
+                } = expect_token!(parser : RParan);
                 pos.extend(&end_pos);
                 Ok(Located::new(Self::Expression(Box::new(expr)), pos))
             }
             Token::LBracket => {
                 let mut vector = vec![];
-                while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+                while let Some(Located {
+                    value: token,
+                    pos: _,
+                }) = parser.token_ref()
+                {
                     if token == &Token::RBracket {
                         break;
                     }
                     vector.push(Expression::parse(parser)?);
-                    if let Some(Located { value: Token::RBracket, pos: _ }) = parser.token_ref() {
+                    if let Some(Located {
+                        value: Token::RBracket,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
                         break;
                     }
                     expect_token!(parser: Comma);
                 }
-                let Located { value: _, pos: end_pos } = expect_token!(parser : RBracket);
+                let Located {
+                    value: _,
+                    pos: end_pos,
+                } = expect_token!(parser : RBracket);
                 pos.extend(&end_pos);
                 Ok(Located::new(Self::Vector(vector), pos))
             }
             Token::LBrace => {
                 let mut object = vec![];
-                while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+                while let Some(Located {
+                    value: token,
+                    pos: _,
+                }) = parser.token_ref()
+                {
                     if token == &Token::RBrace {
                         break;
                     }
@@ -418,12 +546,19 @@ impl Parsable<Token> for Atom {
                     expect_token!(parser: Equal);
                     let expr = Expression::parse(parser)?;
                     object.push((field, expr));
-                    if let Some(Located { value: Token::RBrace, pos: _ }) = parser.token_ref() {
+                    if let Some(Located {
+                        value: Token::RBrace,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
                         break;
                     }
                     expect_token!(parser: Comma);
                 }
-                let Located { value: _, pos: end_pos } = expect_token!(parser : RBrace);
+                let Located {
+                    value: _,
+                    pos: end_pos,
+                } = expect_token!(parser : RBrace);
                 pos.extend(&end_pos);
                 Ok(Located::new(Self::Object(object), pos))
             }
@@ -435,22 +570,41 @@ impl Parsable<Token> for Path {
     type Error = ParserError;
     fn parse(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<Self::Error>> {
         let mut head = Ident::parse(parser)?.map(Self::Ident);
-        while let Some(Located { value: token, pos: _ }) = parser.token_ref() {
+        while let Some(Located {
+            value: token,
+            pos: _,
+        }) = parser.token_ref()
+        {
             match token {
                 Token::Dot => {
                     parser.token();
                     let field = Ident::parse(parser)?;
                     let mut pos = head.pos.clone();
                     pos.extend(&field.pos);
-                    head = Located::new(Self::Field { head: Box::new(head), field }, pos)
+                    head = Located::new(
+                        Self::Field {
+                            head: Box::new(head),
+                            field,
+                        },
+                        pos,
+                    )
                 }
                 Token::LBracket => {
                     parser.token();
                     let index = Expression::parse(parser)?;
-                    let Located { value: _, pos: end_pos } = expect_token!(parser: RBracket);
+                    let Located {
+                        value: _,
+                        pos: end_pos,
+                    } = expect_token!(parser: RBracket);
                     let mut pos = head.pos.clone();
                     pos.extend(&end_pos);
-                    head = Located::new(Self::Index { head: Box::new(head), index: Box::new(index) }, pos)
+                    head = Located::new(
+                        Self::Index {
+                            head: Box::new(head),
+                            index: Box::new(index),
+                        },
+                        pos,
+                    )
                 }
                 _ => break,
             }
@@ -465,22 +619,24 @@ impl Parsable<Token> for Ident {
         if let Token::Ident(ident) = token {
             Ok(Located::new(Ident(ident), pos))
         } else {
-            Err(Located::new(ParserError::ExpectedToken { expected: Token::Ident("".to_string()), got: token }, pos))
+            Err(Located::new(
+                ParserError::ExpectedToken {
+                    expected: Token::Ident("".to_string()),
+                    got: token,
+                },
+                pos,
+            ))
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum CompileError {
-}
+pub enum CompileError {}
 impl Compilable for Located<Chunk> {
     type Error = CompileError;
     type Output = ();
     fn compile(self, compiler: &mut Compiler) -> Result<Self::Output, Located<Self::Error>> {
-        let Located {
-            value: chunk,
-            pos,
-        } = self;
+        let Located { value: chunk, pos } = self;
         compiler.new_const(Value::String(Rc::new("__module".to_string())));
         for stat in chunk.0 {
             stat.compile(compiler)?;
@@ -512,29 +668,65 @@ impl Compilable for Located<Statement> {
         let Located { value: stat, pos } = self;
         match stat {
             Statement::Let { ident, expr } => {
-                let dst = expr.compile(compiler)?;
+                let src = expr.compile(compiler)?;
+                let dst = match src {
+                    Source::Register(dst) => dst,
+                    src => {
+                        let dst = compiler.new_register();
+                        compiler.write(
+                            ByteCode::Move {
+                                dst: Location::Register(dst),
+                                src,
+                            },
+                            pos,
+                        );
+                        dst
+                    }
+                };
                 let scope = compiler.get_scope_mut().expect("no scope on scope stack");
-                scope.new_local(ident.value.0, dst.into());
+                scope.new_local(ident.value.0, dst);
                 Ok(())
             }
-            Statement::Assign { path: Located { value: path, pos: _ }, expr } => {
+            Statement::Assign {
+                path:
+                    Located {
+                        value: path,
+                        pos: _,
+                    },
+                expr,
+            } => {
                 let src = expr.compile(compiler)?;
                 match path {
                     Path::Ident(Ident(ident)) => {
                         let dst = compiler.get_local(&ident);
-                        compiler.write(ByteCode::Move { dst, src: src.into() }, pos);
+                        compiler.write(ByteCode::Move { dst, src }, pos);
                         Ok(())
                     }
-                    Path::Field { head, field: Located { value: Ident(field), pos: _ } } => {
-                        let dst = head.compile(compiler)?;
-                        let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
-                        compiler.write(ByteCode::SetField { dst, field, src: src.into() }, pos);
-                        Ok(())
+                    Path::Field {
+                        head,
+                        field:
+                        Located {
+                                value: Ident(field),
+                                pos: _,
+                            },
+                        } => {
+                            let dst = head.compile(compiler)?;
+                            let field =
+                            Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                            compiler.write(ByteCode::SetField { dst, field, src }, pos);
+                            Ok(())
                     }
                     Path::Index { head, index } => {
                         let dst = head.compile(compiler)?;
                         let index = index.compile(compiler)?;
-                        compiler.write(ByteCode::SetField { dst, field: index.into(), src: src.into() }, pos);
+                        compiler.write(
+                            ByteCode::SetField {
+                                dst,
+                                field: index,
+                                src,
+                            },
+                            pos,
+                        );
                         Ok(())
                     }
                 }
@@ -542,20 +734,77 @@ impl Compilable for Located<Statement> {
             Statement::Call { func, args } => {
                 let func = func.compile(compiler)?;
                 let amount = args.len();
-                let start = compiler.get_closure().expect("no current closure").registers;
-                for _ in start..start+amount {
+                let start = compiler.current_registers;
+                for _ in start..start + amount {
                     compiler.new_register();
                 }
                 for (dst, arg) in args.into_iter().enumerate() {
                     let arg_dst = arg.compile(compiler)?;
-                    compiler.write(ByteCode::Move { dst: Location::Register(start + dst), src: arg_dst.into() }, pos.clone());
+                    compiler.write(
+                        ByteCode::Move {
+                            dst: Location::Register(start + dst),
+                            src: arg_dst,
+                        },
+                        pos.clone(),
+                    );
                 }
-                compiler.write(ByteCode::Call { func: func.into(), start, amount, dst: None }, pos);
+                compiler.write(
+                    ByteCode::Call {
+                        func: func.into(),
+                        start,
+                        amount,
+                        dst: None,
+                    },
+                    pos,
+                );
                 Ok(())
             }
+            Statement::If {
+                cond,
+                case,
+                else_case,
+            } => {
+                let cond = cond.compile(compiler)?;
+                let case_addr = compiler.write(ByteCode::None, pos.clone());
+                case.compile(compiler)?;
+                compiler.overwrite(
+                    case_addr,
+                    ByteCode::JumpIf {
+                        cond,
+                        addr: compiler.addr(),
+                        not: true,
+                    },
+                    pos.clone(),
+                );
+                if let Some(else_case) = else_case {
+                    let else_case_addr = compiler.write(ByteCode::None, pos.clone());
+                    else_case.compile(compiler)?;
+                    compiler.overwrite(
+                        else_case_addr,
+                        ByteCode::JumpIf {
+                            cond,
+                            addr: compiler.addr(),
+                            not: false,
+                        },
+                        pos,
+                    );
+                }
+                Ok(())
+            }
+            Statement::While { cond, body } => {
+                let cond = cond.compile(compiler)?;
+                let addr = compiler.addr();
+                body.compile(compiler)?;
+                compiler.write(ByteCode::JumpIf { cond, addr, not: true }, pos);
+                Ok(())
+            }
+            Statement::For { ident: _, iter: _, body: _ } => {
+                todo!()
+            }
+            Statement::Break => Ok(()),
             Statement::Return(expr) => {
-                let dst = expr.compile(compiler)?;
-                compiler.write(ByteCode::Return { src: dst.into() }, pos);
+                let src = expr.compile(compiler)?;
+                compiler.write(ByteCode::Return { src }, pos);
                 Ok(())
             }
         }
@@ -563,25 +812,11 @@ impl Compilable for Located<Statement> {
 }
 impl Compilable for Located<Expression> {
     type Error = CompileError;
-    type Output = Location;
+    type Output = Source;
     fn compile(self, compiler: &mut Compiler) -> Result<Self::Output, Located<Self::Error>> {
         let Located { value: expr, pos } = self;
-        let pos_clone = pos.clone();
         match expr {
-            Expression::Atom(atom) => match Located::new(atom, pos).compile(compiler)? {
-                Source::Register(register) => Ok(Location::Register(register)),
-                src => {
-                    let dst = compiler.new_register();
-                    compiler.write(
-                        ByteCode::Move {
-                            dst: Location::Register(dst),
-                            src,
-                        },
-                        pos_clone,
-                    );
-                    Ok(Location::Register(dst))
-                }
-            },
+            Expression::Atom(atom) => Located::new(atom, pos).compile(compiler),
             Expression::Binary { op, left, right } => {
                 let dst = compiler.new_register();
                 let right = right.compile(compiler)?;
@@ -590,12 +825,12 @@ impl Compilable for Located<Expression> {
                     ByteCode::Binary {
                         op,
                         dst: Location::Register(dst),
-                        left: left.into(),
-                        right: right.into(),
+                        left,
+                        right,
                     },
                     pos,
                 );
-                Ok(Location::Register(dst))
+                Ok(Source::Register(dst))
             }
             Expression::Unary { op, right } => {
                 let dst = compiler.new_register();
@@ -604,41 +839,85 @@ impl Compilable for Located<Expression> {
                     ByteCode::Unary {
                         op,
                         dst: Location::Register(dst),
-                        right: right.into(),
+                        right,
                     },
                     pos,
                 );
-                Ok(Location::Register(dst))
-            },
+                Ok(Source::Register(dst))
+            }
             Expression::Call { func, args } => {
                 let func = func.compile(compiler)?;
                 let dst = compiler.new_register();
-                compiler.write(ByteCode::Move { dst: Location::Register(dst), src: func }, pos.clone());
+                compiler.write(
+                    ByteCode::Move {
+                        dst: Location::Register(dst),
+                        src: func,
+                    },
+                    pos.clone(),
+                );
                 let amount = args.len();
-                let start = compiler.get_closure().expect("no current closure").registers;
-                for _ in start..start+amount {
+                let start = compiler
+                    .get_closure()
+                    .expect("no current closure")
+                    .registers;
+                for _ in start..start + amount {
                     compiler.new_register();
                 }
                 for (dst, arg) in args.into_iter().enumerate() {
                     let arg_dst = arg.compile(compiler)?;
-                    compiler.write(ByteCode::Move { dst: Location::Register(start + dst), src: arg_dst.into() }, pos.clone());
+                    compiler.write(
+                        ByteCode::Move {
+                            dst: Location::Register(start + dst),
+                            src: arg_dst,
+                        },
+                        pos.clone(),
+                    );
                 }
-                compiler.write(ByteCode::Call { func, start, amount, dst: Some(Location::Register(dst)) }, pos);
-                Ok(Location::Register(dst))
+                compiler.write(
+                    ByteCode::Call {
+                        func,
+                        start,
+                        amount,
+                        dst: Some(Location::Register(dst)),
+                    },
+                    pos,
+                );
+                Ok(Source::Register(dst))
             }
-            Expression::Field { head, field: Located { value: Ident(field), pos: _ } } => {
+            Expression::Field {
+                head,
+                field:
+                    Located {
+                        value: Ident(field),
+                        pos: _,
+                    },
+            } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
                 let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
-                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: head.into(), field }, pos);
-                Ok(Location::Register(dst))
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head,
+                        field,
+                    },
+                    pos,
+                );
+                Ok(Source::Register(dst))
             }
             Expression::Index { head, index } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
                 let index = index.compile(compiler)?;
-                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: head.into(), field: index.into() }, pos);
-                Ok(Location::Register(dst))
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head,
+                        field: index,
+                    },
+                    pos,
+                );
+                Ok(Source::Register(dst))
             }
         }
     }
@@ -655,28 +934,63 @@ impl Compilable for Located<Atom> {
             Atom::Float(v) => Ok(Source::Const(compiler.new_const(Value::Float(v)))),
             Atom::Bool(v) => Ok(Source::Const(compiler.new_const(Value::Bool(v)))),
             Atom::String(v) => Ok(Source::Const(compiler.new_const(Value::String(Rc::new(v))))),
-            Atom::Expression(expr) => Ok((*expr).compile(compiler)?.into()),
+            Atom::Expression(expr) => Ok((*expr).compile(compiler)?),
             Atom::Vector(vector) => {
                 let dst = compiler.new_register();
                 let amount = vector.len();
-                let start = compiler.get_closure().expect("no current closure").registers;
-                for _ in start..start+amount {
+                let start = compiler
+                    .get_closure()
+                    .expect("no current closure")
+                    .registers;
+                for _ in start..start + amount {
                     compiler.new_register();
                 }
                 for (dst, expr) in vector.into_iter().enumerate() {
                     let expr_dst = expr.compile(compiler)?;
-                    compiler.write(ByteCode::Move { dst: Location::Register(start + dst), src: expr_dst.into() }, pos.clone());
+                    compiler.write(
+                        ByteCode::Move {
+                            dst: Location::Register(start + dst),
+                            src: expr_dst,
+                        },
+                        pos.clone(),
+                    );
                 }
-                compiler.write(ByteCode::Vector { dst: Location::Register(dst), start, amount }, pos);
+                compiler.write(
+                    ByteCode::Vector {
+                        dst: Location::Register(dst),
+                        start,
+                        amount,
+                    },
+                    pos,
+                );
                 Ok(Source::Register(dst))
             }
             Atom::Object(object) => {
                 let dst = compiler.new_register();
-                compiler.write(ByteCode::Object { dst: Location::Register(dst) }, pos.clone());
-                for (Located { value: Ident(field), pos: _ }, expr) in object.into_iter() {
+                compiler.write(
+                    ByteCode::Object {
+                        dst: Location::Register(dst),
+                    },
+                    pos.clone(),
+                );
+                for (
+                    Located {
+                        value: Ident(field),
+                        pos: _,
+                    },
+                    expr,
+                ) in object.into_iter()
+                {
                     let src = expr.compile(compiler)?;
                     let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
-                    compiler.write(ByteCode::SetField { dst: Location::Register(dst), field, src: src.into() }, pos.clone());
+                    compiler.write(
+                        ByteCode::SetField {
+                            dst: Location::Register(dst),
+                            field,
+                            src,
+                        },
+                        pos.clone(),
+                    );
                 }
                 Ok(Source::Register(dst))
             }
@@ -690,24 +1004,44 @@ impl Compilable for Located<Path> {
         let Located { value: path, pos } = self;
         match path {
             Path::Ident(Ident(ident)) => Ok(compiler.get_local(&ident)),
-            Path::Field { head, field: Located { value: Ident(field), pos: _ } } => {
+            Path::Field {
+                head,
+                field:
+                    Located {
+                        value: Ident(field),
+                        pos: _,
+                    },
+            } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
                 let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
-                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: head.into(), field }, pos);
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head: head.into(),
+                        field,
+                    },
+                    pos,
+                );
                 Ok(Location::Register(dst))
             }
             Path::Index { head, index } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
                 let index = index.compile(compiler)?;
-                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: head.into(), field: index.into() }, pos);
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head: head.into(),
+                        field: index,
+                    },
+                    pos,
+                );
                 Ok(Location::Register(dst))
             }
         }
     }
 }
-
 
 impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
