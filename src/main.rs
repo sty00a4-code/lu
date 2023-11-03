@@ -8,7 +8,7 @@ pub mod std_env;
 use args::LuArgs;
 use clap::Parser;
 use oneparse::{parse, position::Located};
-use std::{fs, process::exit};
+use std::{fs, process::exit, rc::Rc};
 
 use crate::{
     compiler::{Compilable, Compiler},
@@ -59,7 +59,7 @@ fn main() {
     println!("{}", &main_closure);
     match Interpreter::default()
         .with_globals(std_env::std_env())
-        .run(main_closure)
+        .run(Rc::new(main_closure))
     {
         Ok(value) => if let Some(value) = value {
             println!("{value}");

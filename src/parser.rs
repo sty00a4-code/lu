@@ -6,8 +6,8 @@ use oneparse::{
 };
 
 use crate::{
-    compiler::{ByteCode, Compilable, Compiler, Location, Source},
-    interpreter::Value,
+    compiler::{ByteCode, Closure, Compilable, Compiler, Location, Source},
+    interpreter::{FunctionKind, Value},
     lexer::Token,
 };
 
@@ -45,6 +45,11 @@ pub enum Statement {
     },
     Break,
     Return(Located<Expression>),
+    Function {
+        path: Located<Path>,
+        parameters: Vec<Located<Ident>>,
+        body: Located<Block>,
+    },
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -106,6 +111,10 @@ pub enum Atom {
     Expression(Box<Located<Expression>>),
     Vector(Vec<Located<Expression>>),
     Object(Vec<(Located<Ident>, Located<Expression>)>),
+    Function {
+        parameters: Vec<Located<Ident>>,
+        body: Located<Block>,
+    },
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Path {
@@ -308,22 +317,65 @@ impl Parsable<Token> for Statement {
                 let cond = Expression::parse(parser)?;
                 let case = Block::parse(parser)?;
                 let mut else_case = None;
-                if let Some(Located { value: Token::Else, pos: _ }) = parser.token_ref() {
+                if let Some(Located {
+                    value: Token::Else,
+                    pos: _,
+                }) = parser.token_ref()
+                {
                     parser.token();
-                    else_case = Some(if let Some(Located { value: Token::If, pos: _ }) = parser.token_ref() {
-                        let stat = Self::parse(parser)?;
-                        let stat_pos = stat.pos.clone();
-                        Located::new(Block(vec![stat]), stat_pos)
-                    } else {
-                        Block::parse(parser)?
-                    });
+                    else_case = Some(
+                        if let Some(Located {
+                            value: Token::If,
+                            pos: _,
+                        }) = parser.token_ref()
+                        {
+                            let stat = Self::parse(parser)?;
+                            let stat_pos = stat.pos.clone();
+                            Located::new(Block(vec![stat]), stat_pos)
+                        } else {
+                            Block::parse(parser)?
+                        },
+                    );
                 }
-                Ok(Located::new(Self::If { cond, case, else_case }, pos))
+                Ok(Located::new(
+                    Self::If {
+                        cond,
+                        case,
+                        else_case,
+                    },
+                    pos,
+                ))
             }
             Token::While => {
                 let cond = Expression::parse(parser)?;
                 let body = Block::parse(parser)?;
                 Ok(Located::new(Self::While { cond, body }, pos))
+            }
+            Token::Function => {
+                let path = Path::parse(parser)?;
+                expect_token!(parser: LParan);
+                let mut parameters = vec![];
+                while let Some(Located {
+                    value: token,
+                    pos: _,
+                }) = parser.token_ref()
+                {
+                    if token == &Token::RParan {
+                        break;
+                    }
+                    parameters.push(Ident::parse(parser)?);
+                    if let Some(Located {
+                        value: Token::RParan,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
+                        break;
+                    }
+                    expect_token!(parser: Comma);
+                }
+                expect_token!(parser: RParan);
+                let body = Block::parse(parser)?;
+                Ok(Located::new(Self::Function { path, parameters, body }, pos))
             }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
         }
@@ -567,6 +619,31 @@ impl Parsable<Token> for Atom {
                 pos.extend(&end_pos);
                 Ok(Located::new(Self::Object(object), pos))
             }
+            Token::Function => {
+                expect_token!(parser: LParan);
+                let mut parameters = vec![];
+                while let Some(Located {
+                    value: token,
+                    pos: _,
+                }) = parser.token_ref()
+                {
+                    if token == &Token::RParan {
+                        break;
+                    }
+                    parameters.push(Ident::parse(parser)?);
+                    if let Some(Located {
+                        value: Token::RParan,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
+                        break;
+                    }
+                    expect_token!(parser: Comma);
+                }
+                expect_token!(parser: RParan);
+                let body = Block::parse(parser)?;
+                Ok(Located::new(Self::Function { parameters, body }, pos))
+            }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
         }
     }
@@ -710,16 +787,16 @@ impl Compilable for Located<Statement> {
                     Path::Field {
                         head,
                         field:
-                        Located {
+                            Located {
                                 value: Ident(field),
                                 pos: _,
                             },
-                        } => {
-                            let dst = head.compile(compiler)?;
-                            let field =
+                    } => {
+                        let dst = head.compile(compiler)?;
+                        let field =
                             Source::Const(compiler.new_const(Value::String(Rc::new(field))));
-                            compiler.write(ByteCode::SetField { dst, field, src }, pos);
-                            Ok(())
+                        compiler.write(ByteCode::SetField { dst, field, src }, pos);
+                        Ok(())
                     }
                     Path::Index { head, index } => {
                         let dst = head.compile(compiler)?;
@@ -802,10 +879,22 @@ impl Compilable for Located<Statement> {
                 let exit_addr = compiler.write(ByteCode::None, pos.clone());
                 body.compile(compiler)?;
                 compiler.write(ByteCode::Jump { addr }, pos.clone());
-                compiler.overwrite(exit_addr, ByteCode::JumpIf { cond, addr: compiler.addr(), not: true }, pos);
+                compiler.overwrite(
+                    exit_addr,
+                    ByteCode::JumpIf {
+                        cond,
+                        addr: compiler.addr(),
+                        not: true,
+                    },
+                    pos,
+                );
                 Ok(())
             }
-            Statement::For { ident: _, iter: _, body: _ } => {
+            Statement::For {
+                ident: _,
+                iter: _,
+                body: _,
+            } => {
                 todo!()
             }
             Statement::Break => Ok(()),
@@ -813,6 +902,77 @@ impl Compilable for Located<Statement> {
                 let src = expr.compile(compiler)?;
                 compiler.write(ByteCode::Return { src }, pos);
                 Ok(())
+            }
+            Statement::Function {
+                path:
+                    Located {
+                        value: path,
+                        pos: _,
+                    },
+                parameters,
+                body,
+            } => {
+                let current_registers = compiler.current_registers;
+                let closure = Closure {
+                    code: vec![],
+                    consts: vec![],
+                    registers: parameters.len(),
+                };
+                compiler.push_closure(closure);
+                let registers = (0..parameters.len())
+                    .map(|_| compiler.new_register())
+                    .collect::<Vec<usize>>();
+                let scope = compiler.get_scope_mut().expect("no scope on scope stack");
+                for (
+                    Located {
+                        value: Ident(ident),
+                        pos: _,
+                    },
+                    register,
+                ) in parameters.into_iter().zip(registers)
+                {
+                    scope.new_local(ident, register);
+                }
+                body.compile(compiler)?;
+                let closure = compiler.pop_closure().expect("no closure");
+                compiler.current_registers = current_registers;
+                let src = Source::Const(compiler.new_const(Value::Function(
+                    FunctionKind::Function(Rc::new(closure)),
+                )));
+                match path {
+                    Path::Ident(Ident(ident)) => {
+                        let dst = compiler.get_local(&ident);
+                        compiler.write(ByteCode::Move { dst, src }, pos);
+                        Ok(())
+                    }
+                    Path::Field {
+                        head,
+                        field:
+                            Located {
+                                value: Ident(field),
+                                pos: _,
+                            },
+                    } => {
+                        let dst = head.compile(compiler)?;
+                        let field =
+                            Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                        compiler.write(ByteCode::SetField { dst, field, src }, pos);
+                        Ok(())
+                    }
+                    Path::Index { head, index } => {
+                        let dst = head.compile(compiler)?;
+                        let index = index.compile(compiler)?;
+                        compiler.write(
+                            ByteCode::SetField {
+                                dst,
+                                field: index,
+                                src,
+                            },
+                            pos,
+                        );
+                        Ok(())
+                    }
+                }
             }
         }
     }
@@ -1000,6 +1160,35 @@ impl Compilable for Located<Atom> {
                     );
                 }
                 Ok(Source::Register(dst))
+            }
+            Atom::Function { parameters, body } => {
+                let current_registers = compiler.current_registers;
+                let closure = Closure {
+                    code: vec![],
+                    consts: vec![],
+                    registers: parameters.len(),
+                };
+                compiler.push_closure(closure);
+                let registers = (0..parameters.len())
+                    .map(|_| compiler.new_register())
+                    .collect::<Vec<usize>>();
+                let scope = compiler.get_scope_mut().expect("no scope on scope stack");
+                for (
+                    Located {
+                        value: Ident(ident),
+                        pos: _,
+                    },
+                    register,
+                ) in parameters.into_iter().zip(registers)
+                {
+                    scope.new_local(ident, register);
+                }
+                body.compile(compiler)?;
+                let closure = compiler.pop_closure().expect("no closure");
+                compiler.current_registers = current_registers;
+                Ok(Source::Const(compiler.new_const(Value::Function(
+                    FunctionKind::Function(Rc::new(closure)),
+                ))))
             }
         }
     }

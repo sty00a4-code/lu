@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc, fmt::Display};
 use oneparse::position::{Located, Positon};
 
 use crate::{
-    interpreter::Value,
+    interpreter::{Value, FunctionKind},
     parser::{BinaryOperator, UnaryOperator},
 };
 
@@ -94,7 +94,6 @@ pub struct Compiler {
 
     pub current_registers: usize,
     scope_stacks: Vec<Vec<Scope>>,
-    cp: usize,
 }
 #[derive(Debug, Clone, Default)]
 pub struct Scope {
@@ -108,7 +107,6 @@ impl Default for Compiler {
             closures: vec![Closure::default()],
             current_registers: 0,
             scope_stacks: vec![vec![Scope::default()]],
-            cp: 0,
         }
     }
 }
@@ -118,20 +116,20 @@ impl Compiler {
         self.scope_stacks.push(vec![Scope::default()]);
     }
     pub fn pop_closure(&mut self) -> Option<Closure> {
-        self.scope_stacks.push(vec![Scope::default()]);
+        self.scope_stacks.pop();
         self.closures.pop()
     }
     pub fn get_closure(&self) -> Option<&Closure> {
-        self.closures.get(self.cp)
+        self.closures.last()
     }
     pub fn get_closure_mut(&mut self) -> Option<&mut Closure> {
-        self.closures.get_mut(self.cp)
+        self.closures.last_mut()
     }
     pub fn get_scope_stack(&self) -> Option<&Vec<Scope>> {
-        self.scope_stacks.get(self.cp)
+        self.scope_stacks.last()
     }
     pub fn get_scope_stack_mut(&mut self) -> Option<&mut Vec<Scope>> {
-        self.scope_stacks.get_mut(self.cp)
+        self.scope_stacks.last_mut()
     }
     pub fn get_scope(&self) -> Option<&Scope> {
         self.get_scope_stack()?.last()
@@ -298,6 +296,11 @@ impl Display for Closure {
         writeln!(f, "constants #{}", self.consts.len())?;
         for (addr, constant) in self.consts.iter().enumerate() {
             writeln!(f, "\t[{addr}] = {constant:?}")?;
+        }
+        for constant in self.consts.iter() {
+            if let Value::Function(FunctionKind::Function(func)) = constant {
+                write!(f, "\n{func}")?;
+            }
         }
         Ok(())
     }
