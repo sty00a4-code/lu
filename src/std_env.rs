@@ -23,6 +23,10 @@ pub fn std_env() -> HashMap<String, Value> {
         "error".into(),
         Value::Function(FunctionKind::NativeFunction(_error)),
     );
+    env.insert(
+        "exit".into(),
+        Value::Function(FunctionKind::NativeFunction(_exit)),
+    );
     env
 }
 pub fn _print(
@@ -83,6 +87,18 @@ pub fn _error(
         return Ok(None);
     }
     Err(Located::new(RunTimeError::Custom(args.remove(0).to_string()), pos.clone()))
+}
+pub fn _exit(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    _: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    let code = args.get(0).cloned().unwrap_or(Value::Int(0));
+    std::process::exit(if let Value::Int(code) = code {
+        code
+    } else {
+        0
+    });
 }
 pub fn _math_abs(
     _: &mut Interpreter,
