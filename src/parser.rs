@@ -320,6 +320,11 @@ impl Parsable<Token> for Statement {
                 }
                 Ok(Located::new(Self::If { cond, case, else_case }, pos))
             }
+            Token::While => {
+                let cond = Expression::parse(parser)?;
+                let body = Block::parse(parser)?;
+                Ok(Located::new(Self::While { cond, body }, pos))
+            }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
         }
     }
@@ -792,10 +797,12 @@ impl Compilable for Located<Statement> {
                 Ok(())
             }
             Statement::While { cond, body } => {
-                let cond = cond.compile(compiler)?;
                 let addr = compiler.addr();
+                let cond = cond.compile(compiler)?;
+                let exit_addr = compiler.write(ByteCode::None, pos.clone());
                 body.compile(compiler)?;
-                compiler.write(ByteCode::JumpIf { cond, addr, not: true }, pos);
+                compiler.write(ByteCode::Jump { addr }, pos.clone());
+                compiler.overwrite(exit_addr, ByteCode::JumpIf { cond, addr: compiler.addr(), not: true }, pos);
                 Ok(())
             }
             Statement::For { ident: _, iter: _, body: _ } => {

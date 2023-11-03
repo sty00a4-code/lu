@@ -268,7 +268,7 @@ impl Location {
             Location::Register(register) => format!("reg@{register}"),
             Location::Global(addr) => format!("glob@{addr}={:?}", closure.consts.get(*addr).cloned().unwrap_or_default()),
         })
-    } 
+    }
 }
 impl Display for Closure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -277,25 +277,25 @@ impl Display for Closure {
             writeln!(f, "\t[{addr}] {}", match bytecode {
                 ByteCode::None => "none".to_string(),
                 ByteCode::Halt => "halt".to_string(),
-                ByteCode::Jump { addr } => format!("jump {addr}"),
+                ByteCode::Jump { addr } => format!("jump addr {addr}"),
                 ByteCode::JumpIf { cond, addr, not } => if *not {
-                    format!("jump not {} {addr}", cond.display_code(self))
+                    format!("jump if not cond {} addr {addr}", cond.display_code(self))
                 } else {
-                    format!("jump {} {addr}", cond.display_code(self))
+                    format!("jump if cond {} addr {addr}", cond.display_code(self))
                 }
-                ByteCode::Call { func, start, amount, dst } => format!("call {} {start} {amount} {:?}", func.display_code(self), dst.map(|loc| loc.display_code(self))),
-                ByteCode::Return { src } => format!("return {}", src.display_code(self)),
-                ByteCode::Move { dst, src } => format!("move {} {}", dst.display_code(self), src.display_code(self)),
-                ByteCode::Null { dst } => format!("null {}", dst.display_code(self)),
-                ByteCode::Vector { dst, start, amount } => format!("vector {} {start} {amount}", dst.display_code(self)),
-                ByteCode::Object { dst } => format!("object {}", dst.display_code(self)),
-                ByteCode::SetField { dst, field, src } => format!("setfield {} {} {}", dst.display_code(self), field.display_code(self), src.display_code(self)),
-                ByteCode::Binary { op, dst, left, right } => format!("binary {op:?} {} {} {}", dst.display_code(self), left.display_code(self), right.display_code(self)),
-                ByteCode::Unary { op, dst, right } => format!("unary {op:?} {} {}", dst.display_code(self), right.display_code(self)),
-                ByteCode::Field { dst, head, field } => format!("field {} {} {}", dst.display_code(self), head.display_code(self), field.display_code(self)),
+                ByteCode::Call { func, start, amount, dst } => format!("call {} start {start} amount {amount} dst {:?}", func.display_code(self), dst.map(|loc| loc.display_code(self))),
+                ByteCode::Return { src } => format!("return src {}", src.display_code(self)),
+                ByteCode::Move { dst, src } => format!("move dst {} src {}", dst.display_code(self), src.display_code(self)),
+                ByteCode::Null { dst } => format!("null dst {}", dst.display_code(self)),
+                ByteCode::Vector { dst, start, amount } => format!("vector dst {} start {start} amount {amount}", dst.display_code(self)),
+                ByteCode::Object { dst } => format!("object dst {}", dst.display_code(self)),
+                ByteCode::SetField { dst, field, src } => format!("setfield dst {} field {} src {}", dst.display_code(self), field.display_code(self), src.display_code(self)),
+                ByteCode::Binary { op, dst, left, right } => format!("binary {op:?} dst {} right {} left {}", dst.display_code(self), left.display_code(self), right.display_code(self)),
+                ByteCode::Unary { op, dst, right } => format!("unary {op:?} dst {} right {}", dst.display_code(self), right.display_code(self)),
+                ByteCode::Field { dst, head, field } => format!("field dst {} head {} field {}", dst.display_code(self), head.display_code(self), field.display_code(self)),
             })?;
         }
-        writeln!(f, "consts")?;
+        writeln!(f, "constants #{}", self.consts.len())?;
         for (addr, constant) in self.consts.iter().enumerate() {
             writeln!(f, "\t[{addr}] = {constant:?}")?;
         }
