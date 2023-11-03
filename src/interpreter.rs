@@ -198,15 +198,8 @@ impl Interpreter {
             }
             ByteCode::JumpIf { cond, addr, not } => {
                 let cond = self.source(cond).expect("source not found");
-                if not {
-                    if !bool::from(cond) {
-                        let ip = &mut self
-                            .current_call_frame_mut()
-                            .expect("no current call frame")
-                            .ip;
-                        *ip = addr;
-                    }
-                } else if bool::from(cond) {
+                let cond = if not { !bool::from(cond) } else { bool::from(cond) };
+                if cond {
                     let ip = &mut self
                         .current_call_frame_mut()
                         .expect("no current call frame")
