@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt::{Debug, Display},
-    rc::Rc,
+    cell::{RefCell, Ref}, rc::Rc,
 };
 
 use crate::{
@@ -18,14 +18,14 @@ pub enum Value {
     Int(i32),
     Float(f32),
     Bool(bool),
-    String(Rc<String>),
-    Vector(Rc<Vec<Self>>),
-    Object(Rc<Object>),
+    String(String),
+    Vector(Rc<RefCell<Vec<Self>>>),
+    Object(Rc<RefCell<Object>>),
     Function(FunctionKind),
 }
 #[derive(Clone)]
 pub enum FunctionKind {
-    Function(Rc<Closure>),
+    Function(Rc<RefCell<Closure>>),
     NativeFunction(NativeFunction),
 }
 pub type NativeFunction =
@@ -33,7 +33,7 @@ pub type NativeFunction =
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Object {
     pub map: HashMap<String, Value>,
-    pub meta: Option<Rc<Self>>,
+    pub meta: Option<Box<Rc<RefCell<Self>>>>,
 }
 
 #[derive(Debug, Default)]
@@ -44,7 +44,7 @@ pub struct Interpreter {
 }
 #[derive(Debug, Clone)]
 pub struct CallFrame {
-    pub closure: Rc<Closure>,
+    pub closure: RefCell<Closure>,
     pub ip: usize,
     pub stack_base: usize,
     pub dst: Option<Location>,
@@ -66,16 +66,19 @@ impl Interpreter {
         self.globals = globals;
         self
     }
-    pub fn enter_call(&mut self, closure: Rc<Closure>, args: Vec<Value>, dst: Option<Location>) {
+    pub fn enter_call(&mut self, closure: Rc<RefCell<Closure>>, args: Vec<Value>, dst: Option<Location>) {
         let call_frame = CallFrame {
-            closure: Rc::clone(&closure),
+            closure: RefCell::clone(&closure),
             ip: 0,
             stack_base: self.stack.len(),
             dst,
-            path: closure.path.clone()
+            path: closure.borrow().path.clone()
         };
-        for i in 0..call_frame.closure.registers {
+        for i in 0..call_frame.closure.borrow().args {
             self.stack.push(args.get(i).cloned().unwrap_or_default());
+        }
+        for _ in call_frame.closure.borrow().args..call_frame.closure.borrow().registers {
+            self.stack.push(Value::default());
         }
         self.call_stack.push(call_frame);
     }
@@ -105,17 +108,17 @@ impl Interpreter {
     pub fn current_call_frame_mut(&mut self) -> Option<&mut CallFrame> {
         self.call_stack.last_mut()
     }
-    pub fn current_closure(&self) -> Option<&Closure> {
+    pub fn current_closure(&self) -> Option<Ref<Closure>> {
         self.current_call_frame()
-            .map(|call_frame| call_frame.closure.as_ref())
+            .map(|call_frame| call_frame.closure.borrow())
     }
-    pub fn current_instr(&self) -> Option<&Located<ByteCode>> {
-        let code = &self.current_closure()?.code;
+    pub fn current_instr(&self) -> Option<Located<ByteCode>> {
+        let closure = self.current_closure()?;
         let ip = self
             .current_call_frame()
             .expect("no call frame on stack")
             .ip;
-        code.get(ip)
+        closure.code.get(ip).cloned()
     }
     pub fn register(&self, register: usize) -> Option<&Value> {
         let stack_base = self
@@ -131,21 +134,21 @@ impl Interpreter {
             .stack_base;
         self.stack.get_mut(stack_base + register)
     }
-    pub fn constant(&self, addr: usize) -> Option<&Value> {
+    pub fn constant(&self, addr: usize) -> Option<Value> {
         let consts = &self.current_closure().expect("no current closure").consts;
-        consts.get(addr)
+        consts.get(addr).cloned()
     }
-    pub fn source(&self, source: Source) -> Option<&Value> {
+    pub fn source(&self, source: Source) -> Option<Value> {
         match source {
-            Source::Register(register) => self.register(register),
+            Source::Register(register) => self.register(register).cloned(),
             Source::Const(addr) => self.constant(addr),
-            Source::Null => Some(GLOBAL_NULL),
+            Source::Null => Some(Value::Null),
             Source::Global(addr) => {
                 let ident = match self.constant(addr)? {
                     Value::String(ident) => ident.clone(),
                     _ => return None,
                 };
-                self.globals.get(ident.as_ref())
+                self.globals.get(ident.as_str()).cloned()
             }
         }
     }
@@ -157,15 +160,15 @@ impl Interpreter {
                     Value::String(ident) => ident.clone(),
                     _ => return None,
                 };
-                if !self.globals.contains_key(ident.as_ref()) {
+                if !self.globals.contains_key(ident.as_str()) {
                     self.globals.insert(ident.to_string(), Value::default());
                 }
-                self.globals.get_mut(ident.as_ref())
+                self.globals.get_mut(ident.as_str())
             }
         }
     }
 
-    pub fn run(&mut self, closure: Rc<Closure>) -> Result<Option<Value>, Located<RunTimeError>> {
+    pub fn run(&mut self, closure: Rc<RefCell<Closure>>) -> Result<Option<Value>, Located<RunTimeError>> {
         self.enter_call(closure, vec![], Some(Location::Global(0)));
         loop {
             if self.step()? {
@@ -208,9 +211,9 @@ impl Interpreter {
             ByteCode::JumpIf { cond, addr, not } => {
                 let cond = self.source(cond).expect("source not found");
                 let cond = if not {
-                    !bool::from(cond)
+                    !bool::from(&cond)
                 } else {
-                    bool::from(cond)
+                    bool::from(&cond)
                 };
                 if cond {
                     let ip = &mut self
@@ -226,7 +229,7 @@ impl Interpreter {
                 amount,
                 dst,
             } => {
-                let func = self.source(func).cloned().unwrap_or_default();
+                let func = self.source(func).unwrap_or_default();
                 let mut args = vec![];
                 for addr in start..start + amount {
                     args.push(
@@ -252,7 +255,7 @@ impl Interpreter {
                 }
             }
             ByteCode::Return { src } => {
-                let return_value = self.source(src).cloned().unwrap_or_default();
+                let return_value = self.source(src).unwrap_or_default();
                 self.return_call(return_value);
                 if self.call_stack.is_empty() {
                     return Ok(true);
@@ -260,7 +263,7 @@ impl Interpreter {
             }
 
             ByteCode::Move { dst, src } => {
-                let value = self.source(src).cloned().unwrap_or_default();
+                let value = self.source(src).unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = value;
             }
@@ -278,21 +281,19 @@ impl Interpreter {
                     );
                 }
                 let register = self.location(dst).expect("location not found");
-                *register = Value::Vector(Rc::new(vector));
+                *register = Value::Vector(Rc::new(RefCell::new(vector)));
             }
             ByteCode::Object { dst } => {
                 let register = self.location(dst).expect("location not found");
-                *register = Value::Object(Rc::new(Object::default()));
+                *register = Value::Object(Rc::new(RefCell::new(Object::default())));
             }
             ByteCode::SetField { dst, field, src } => {
-                let field = self.source(field).cloned().unwrap_or_default();
-                let value = self.source(src).cloned().unwrap_or_default();
+                let field = self.source(field).unwrap_or_default();
+                let value = self.source(src).unwrap_or_default();
                 match self.location(dst).expect("location not found") {
                     Value::Object(object) => {
                         if let Value::String(field) = field {
-                            if let Some(object) = Rc::get_mut(object) {
-                                object.map.insert(field.to_string(), value);
-                            }
+                            object.borrow_mut().map.insert(field.clone(), value);
                         } else {
                             return Err(Located::new(
                                 RunTimeError::InvalidField(Value::Object(object.clone()), field),
@@ -302,12 +303,10 @@ impl Interpreter {
                     }
                     Value::Vector(vector) => {
                         if let Value::Int(index) = field {
-                            if let Some(vector) = Rc::get_mut(vector) {
-                                if let Some(old_value) =
-                                    vector.get_mut(index.unsigned_abs() as usize)
-                                {
-                                    *old_value = value;
-                                }
+                            if let Some(old_value) =
+                                vector.borrow_mut().get_mut(index.unsigned_abs() as usize)
+                            {
+                                *old_value = value;
                             }
                         } else {
                             return Err(Located::new(
@@ -331,8 +330,8 @@ impl Interpreter {
                 left,
                 right,
             } => {
-                let left = self.source(left).cloned().unwrap_or_default();
-                let right = self.source(right).cloned().unwrap_or_default();
+                let left = self.source(left).unwrap_or_default();
+                let right = self.source(right).unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match op {
                     BinaryOperator::And => {
@@ -512,7 +511,7 @@ impl Interpreter {
                 };
             }
             ByteCode::Unary { op, dst, right } => {
-                let right = self.source(right).cloned().unwrap_or_default();
+                let right = self.source(right).unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match op {
                     UnaryOperator::Neg => match right {
@@ -526,20 +525,20 @@ impl Interpreter {
                 };
             }
             ByteCode::Field { dst, head, field } => {
-                let head = self.source(head).cloned().unwrap_or_default();
-                let field = self.source(field).cloned().unwrap_or_default();
+                let head = self.source(head).unwrap_or_default();
+                let field = self.source(field).unwrap_or_default();
                 let register = self.location(dst).expect("location not found");
                 *register = match &head {
                     Value::Object(object) => match field {
                         Value::String(field) => {
-                            object.map.get(field.as_str()).cloned().unwrap_or_default()
+                            object.borrow().map.get(field.as_str()).cloned().unwrap_or_default()
                         }
                         field => {
                             return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
                         }
                     },
                     Value::Vector(vector) => match field {
-                        Value::Int(index) => vector
+                        Value::Int(index) => vector.borrow()
                             .get(index as u32 as usize)
                             .cloned()
                             .unwrap_or_default(),
@@ -580,8 +579,8 @@ impl Display for Value {
             Value::Float(v) => write!(f, "{v}"),
             Value::Bool(v) => write!(f, "{v}"),
             Value::String(string) => write!(f, "{string}"),
-            Value::Vector(vector) => write!(f, "{vector:?}"),
-            Value::Object(object) => write!(f, "object:{:?}", object.as_ref() as *const Object),
+            Value::Vector(vector) => write!(f, "{:?}", vector.borrow()),
+            Value::Object(object) => write!(f, "object:{:?}", object.as_ptr()),
             Value::Function(kind) => write!(f, "function:{kind}"),
         }
     }
@@ -594,8 +593,8 @@ impl Debug for Value {
             Value::Float(v) => write!(f, "{v:?}"),
             Value::Bool(v) => write!(f, "{v:?}"),
             Value::String(string) => write!(f, "{string:?}"),
-            Value::Vector(vector) => write!(f, "{vector:?}"),
-            Value::Object(object) => write!(f, "object:{:?}", object.as_ref() as *const Object),
+            Value::Vector(vector) => write!(f, "{:?}", vector.borrow()),
+            Value::Object(object) => write!(f, "object:{:?}", object.as_ptr()),
             Value::Function(kind) => write!(f, "function:{kind}"),
         }
     }
@@ -604,7 +603,7 @@ impl Display for FunctionKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FunctionKind::Function(closure) => {
-                write!(f, "{:?}", closure.as_ref() as *const Closure)
+                write!(f, "{:?}", closure.as_ptr() as *const Closure)
             }
             FunctionKind::NativeFunction(func) => write!(f, "{:?}", func as *const NativeFunction),
         }
@@ -619,7 +618,7 @@ impl From<&Value> for bool {
             Value::Float(v) => *v != 0.,
             Value::Bool(v) => *v,
             Value::String(string) => !string.is_empty(),
-            Value::Vector(vector) => !vector.is_empty(),
+            Value::Vector(vector) => !vector.borrow().is_empty(),
             Value::Object(_) => true,
             Value::Function(_) => true,
         }
@@ -642,17 +641,17 @@ impl From<bool> for Value {
 }
 impl From<String> for Value {
     fn from(value: String) -> Self {
-        Self::String(Rc::new(value))
+        Self::String(value)
     }
 }
 impl From<HashMap<String, Value>> for Value {
     fn from(value: HashMap<String, Value>) -> Self {
-        Self::Object(Rc::new(Object::from(value)))
+        Self::Object(Rc::new(RefCell::new(Object::from(value))))
     }
 }
 impl From<Closure> for Value {
     fn from(value: Closure) -> Self {
-        Self::Function(FunctionKind::Function(Rc::new(value)))
+        Self::Function(FunctionKind::Function(Rc::new(RefCell::new(value))))
     }
 }
 impl From<NativeFunction> for Value {
@@ -678,9 +677,9 @@ impl<T: Into<Value>> From<Option<T>> for Value {
 }
 impl<T: Into<Value>> From<Vec<T>> for Value {
     fn from(value: Vec<T>) -> Self {
-        Self::Vector(Rc::new(
-            value.into_iter().map(|value| value.into()).collect(),
-        ))
+        Self::Vector(Rc::new(RefCell::new(
+                    value.into_iter().map(|value| value.into()).collect(),
+                )))
     }
 }
 impl TryFrom<Value> for i32 {
@@ -712,7 +711,7 @@ impl TryFrom<Value> for bool {
 }
 pub enum TryFromValueRcError<T> {
     MissmatchedValue,
-    CantGetInnerValue(Rc<T>),
+    CantGetInnerValue(RefCell<T>),
 }
 impl<T> Display for TryFromValueRcError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -726,10 +725,7 @@ impl TryFrom<Value> for String {
     type Error = TryFromValueRcError<Self>;
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::String(value) => match Rc::try_unwrap(value) {
-                Ok(value) => Ok(value),
-                Err(err) => Err(TryFromValueRcError::CantGetInnerValue(err)),
-            },
+            Value::String(value) => Ok(value),
             _ => Err(TryFromValueRcError::MissmatchedValue),
         }
     }
@@ -738,10 +734,7 @@ impl TryFrom<Value> for Vec<Value> {
     type Error = TryFromValueRcError<Self>;
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Vector(value) => match Rc::try_unwrap(value) {
-                Ok(value) => Ok(value),
-                Err(err) => Err(TryFromValueRcError::CantGetInnerValue(err)),
-            },
+            Value::Vector(value) => Ok(value.borrow().clone()),
             _ => Err(TryFromValueRcError::MissmatchedValue),
         }
     }
@@ -750,10 +743,7 @@ impl TryFrom<Value> for Object {
     type Error = TryFromValueRcError<Self>;
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::Object(value) => match Rc::try_unwrap(value) {
-                Ok(value) => Ok(value),
-                Err(err) => Err(TryFromValueRcError::CantGetInnerValue(err)),
-            },
+            Value::Object(value) => Ok(value.borrow().clone()),
             _ => Err(TryFromValueRcError::MissmatchedValue),
         }
     }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use oneparse::position::{Located, Positon};
 
@@ -54,10 +54,9 @@ pub fn _setmeta(
     } else {
         Some(args.remove(0))
     };
-    if let Value::Object(mut object) = object {
+    if let Value::Object(object) = object {
         if let Some(Value::Object(meta)) = meta {
-            let object = Rc::make_mut(&mut object);
-            object.meta = Some(meta);
+            object.borrow_mut().meta = Some(Box::new(meta));
         }
         Ok(Some(Value::Object(object)))
     } else {
@@ -73,7 +72,7 @@ pub fn _getmeta(
         return Ok(None);
     }
     if let Value::Object(object) = args.remove(0) {
-        Ok(object.meta.clone().map(Value::Object))
+        Ok(object.borrow().meta.clone().map(|meta| *meta).map(Value::Object))
     } else {
         Ok(None)
     }

@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, rc::Rc};
+use std::{error::Error, fmt::Display, cell::RefCell, rc::Rc};
 
 use oneparse::{
     parser::{Parsable, Parser},
@@ -726,7 +726,7 @@ impl Compilable for Located<Chunk> {
     type Output = ();
     fn compile(self, compiler: &mut Compiler) -> Result<Self::Output, Located<Self::Error>> {
         let Located { value: chunk, pos } = self;
-        compiler.new_const(Value::String(Rc::new("__module".to_string())));
+        compiler.new_const(Value::String("__module".to_string()));
         for stat in chunk.0 {
             stat.compile(compiler)?;
         }
@@ -801,7 +801,7 @@ impl Compilable for Located<Statement> {
                     } => {
                         let dst = head.compile(compiler)?;
                         let field =
-                            Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                            Source::Const(compiler.new_const(Value::String(field)));
                         compiler.write(ByteCode::SetField { dst, field, src }, pos);
                         Ok(())
                     }
@@ -823,7 +823,7 @@ impl Compilable for Located<Statement> {
             Statement::Call { func, args } => {
                 let func = func.compile(compiler)?;
                 let amount = args.len();
-                let start = compiler.current_registers;
+                let start = *compiler.get_registers().expect("no registers");
                 for _ in start..start + amount {
                     compiler.new_register();
                 }
@@ -919,11 +919,11 @@ impl Compilable for Located<Statement> {
                 parameters,
                 body,
             } => {
-                let current_registers = compiler.current_registers;
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
                     consts: vec![],
+                    args: parameters.len(),
                     registers: parameters.len(),
                 };
                 compiler.push_closure(closure);
@@ -942,10 +942,10 @@ impl Compilable for Located<Statement> {
                     scope.new_local(ident, register);
                 }
                 body.compile(compiler)?;
+                compiler.write(ByteCode::Return { src: Source::Null }, pos.clone());
                 let closure = compiler.pop_closure().expect("no closure");
-                compiler.current_registers = current_registers;
                 let src = Source::Const(
-                    compiler.new_const(Value::Function(FunctionKind::Function(Rc::new(closure)))),
+                    compiler.new_const(Value::Function(FunctionKind::Function(Rc::new(RefCell::new(closure))))),
                 );
                 match path {
                     Path::Ident(Ident(ident)) => {
@@ -963,7 +963,7 @@ impl Compilable for Located<Statement> {
                     } => {
                         let dst = head.compile(compiler)?;
                         let field =
-                            Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                            Source::Const(compiler.new_const(Value::String(field)));
                         compiler.write(ByteCode::SetField { dst, field, src }, pos);
                         Ok(())
                     }
@@ -1024,7 +1024,7 @@ impl Compilable for Located<Expression> {
                 let dst = compiler.new_register();
                 let func = func.compile(compiler)?;
                 let amount = args.len();
-                let start = compiler.current_registers;
+                let start = *compiler.get_registers().expect("no registers");
                 for _ in start..start + amount {
                     compiler.new_register();
                 }
@@ -1059,7 +1059,7 @@ impl Compilable for Located<Expression> {
             } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
-                let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                let field = Source::Const(compiler.new_const(Value::String(field)));
                 compiler.write(
                     ByteCode::Field {
                         dst: Location::Register(dst),
@@ -1098,7 +1098,7 @@ impl Compilable for Located<Atom> {
             Atom::Int(v) => Ok(Source::Const(compiler.new_const(Value::Int(v)))),
             Atom::Float(v) => Ok(Source::Const(compiler.new_const(Value::Float(v)))),
             Atom::Bool(v) => Ok(Source::Const(compiler.new_const(Value::Bool(v)))),
-            Atom::String(v) => Ok(Source::Const(compiler.new_const(Value::String(Rc::new(v))))),
+            Atom::String(v) => Ok(Source::Const(compiler.new_const(Value::String(v)))),
             Atom::Expression(expr) => Ok((*expr).compile(compiler)?),
             Atom::Vector(vector) => {
                 let dst = compiler.new_register();
@@ -1147,7 +1147,7 @@ impl Compilable for Located<Atom> {
                 ) in object.into_iter()
                 {
                     let src = expr.compile(compiler)?;
-                    let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                    let field = Source::Const(compiler.new_const(Value::String(field)));
                     compiler.write(
                         ByteCode::SetField {
                             dst: Location::Register(dst),
@@ -1161,11 +1161,11 @@ impl Compilable for Located<Atom> {
             }
             Atom::Function { parameters, body } => {
                 // FIXME: register reset not working, move this code to compiler.new_function(parameters, body)
-                let current_registers = compiler.current_registers;
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
                     consts: vec![],
+                    args: parameters.len(),
                     registers: parameters.len(),
                 };
                 compiler.push_closure(closure);
@@ -1184,10 +1184,10 @@ impl Compilable for Located<Atom> {
                     scope.new_local(ident, register);
                 }
                 body.compile(compiler)?;
+                compiler.write(ByteCode::Return { src: Source::Null }, pos);
                 let closure = compiler.pop_closure().expect("no closure");
-                compiler.current_registers = current_registers;
                 Ok(Source::Const(compiler.new_const(Value::Function(
-                    FunctionKind::Function(Rc::new(closure)),
+                    FunctionKind::Function(Rc::new(RefCell::new(closure))),
                 ))))
             }
         }
@@ -1210,7 +1210,7 @@ impl Compilable for Located<Path> {
             } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
-                let field = Source::Const(compiler.new_const(Value::String(Rc::new(field))));
+                let field = Source::Const(compiler.new_const(Value::String(field)));
                 compiler.write(
                     ByteCode::Field {
                         dst: Location::Register(dst),

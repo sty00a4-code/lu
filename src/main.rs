@@ -8,7 +8,7 @@ pub mod std_env;
 use args::LuArgs;
 use clap::Parser;
 use oneparse::{parse, position::Located};
-use std::{fs, process::exit, rc::Rc};
+use std::{fs, process::exit, cell::RefCell, rc::Rc};
 
 use crate::{
     compiler::{Compilable, Compiler},
@@ -56,10 +56,10 @@ fn main() {
         }
         compiler.closures[0].clone()
     };
-    println!("{}", &main_closure);
+    // println!("{}", &main_closure);
     match Interpreter::default()
         .with_globals(std_env::std_env())
-        .run(Rc::new(main_closure))
+        .run(Rc::new(RefCell::new(main_closure)))
     {
         Ok(value) => {
             if let Some(value) = value {

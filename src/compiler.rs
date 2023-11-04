@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, rc::Rc};
+use std::{collections::HashMap, fmt::Display};
 
 use oneparse::position::{Located, Positon};
 
@@ -86,6 +86,7 @@ pub enum Location {
 pub struct Closure {
     pub code: Vec<Located<ByteCode>>,
     pub consts: Vec<Value>,
+    pub args: usize,
     pub registers: usize,
     pub path: String,
 }
@@ -93,8 +94,8 @@ pub struct Closure {
 pub struct Compiler {
     pub path: String,
     pub closures: Vec<Closure>,
+    pub registers: Vec<usize>,
 
-    pub current_registers: usize,
     scope_stacks: Vec<Vec<Scope>>,
 }
 #[derive(Debug, Clone, Default)]
@@ -106,18 +107,26 @@ pub struct Scope {
 impl Compiler {
     pub fn new(path: String) -> Self {
         Self {
-            closures: vec![Closure { code: vec![], consts: vec![], registers: 0, path: path.clone() }],
+            closures: vec![Closure {
+                code: vec![],
+                consts: vec![],
+                args: 0,
+                registers: 0,
+                path: path.clone(),
+            }],
             path,
-            current_registers: 0,
+            registers: vec![0],
             scope_stacks: vec![vec![Scope::default()]],
         }
     }
     pub fn push_closure(&mut self, closure: Closure) {
         self.closures.push(closure);
         self.scope_stacks.push(vec![Scope::default()]);
+        self.registers.push(0);
     }
     pub fn pop_closure(&mut self) -> Option<Closure> {
         self.scope_stacks.pop();
+        self.registers.pop();
         self.closures.pop()
     }
     pub fn get_closure(&self) -> Option<&Closure> {
@@ -125,6 +134,12 @@ impl Compiler {
     }
     pub fn get_closure_mut(&mut self) -> Option<&mut Closure> {
         self.closures.last_mut()
+    }
+    pub fn get_registers(&self) -> Option<&usize> {
+        self.registers.last()
+    }
+    pub fn get_registers_mut(&mut self) -> Option<&mut usize> {
+        self.registers.last_mut()
     }
     pub fn get_scope_stack(&self) -> Option<&Vec<Scope>> {
         self.scope_stacks.last()
@@ -164,9 +179,9 @@ impl Compiler {
         addr
     }
     pub fn new_register(&mut self) -> usize {
-        let register = self.current_registers;
-        self.current_registers += 1;
-        let current_registers = self.current_registers;
+        let register = *self.get_registers().expect("no registers");
+        *self.get_registers_mut().expect("no registers") += 1;
+        let current_registers = *self.get_registers().expect("no registers");
         let closure = self.get_closure_mut().expect("no current closure");
         if closure.registers < current_registers {
             closure.registers = current_registers;
@@ -184,7 +199,7 @@ impl Compiler {
     pub fn pop_scope(&mut self) {
         let scope_stack = self.get_scope_stack_mut().expect("no current scope stack");
         if let Some(scope) = scope_stack.pop() {
-            self.current_registers = scope.register_base;
+            *self.get_registers_mut().expect("no registers") = scope.register_base;
         }
     }
     pub fn new_local(&mut self, ident: String) -> usize {
@@ -203,7 +218,7 @@ impl Compiler {
                 return Location::Register(*addr);
             }
         }
-        Location::Global(self.new_const(Value::String(Rc::new(ident.to_string()))))
+        Location::Global(self.new_const(Value::String(ident.to_string())))
     }
 }
 impl Scope {
@@ -300,12 +315,12 @@ impl Display for Closure {
                 match bytecode {
                     ByteCode::None => "none".to_string(),
                     ByteCode::Halt => "halt".to_string(),
-                    ByteCode::Jump { addr } => format!("jump addr {addr}"),
+                    ByteCode::Jump { addr } => format!("jump {addr}"),
                     ByteCode::JumpIf { cond, addr, not } =>
                         if *not {
-                            format!("jump if not cond {} addr {addr}", cond.display_code(self))
+                            format!("jump if not {} {addr}", cond.display_code(self))
                         } else {
-                            format!("jump if cond {} addr {addr}", cond.display_code(self))
+                            format!("jump if {} {addr}", cond.display_code(self))
                         },
                     ByteCode::Call {
                         func,
@@ -313,24 +328,26 @@ impl Display for Closure {
                         amount,
                         dst,
                     } => format!(
-                        "call {} start {start} amount {amount} dst {:?}",
+                        "call {} : reg@{start} + {amount}{}",
                         func.display_code(self),
-                        dst.map(|loc| loc.display_code(self))
+                        if let Some(dst) = dst {
+                            format!(" -> {}", dst.display_code(self))
+                        } else {
+                            String::new()
+                        }
                     ),
-                    ByteCode::Return { src } => format!("return src {}", src.display_code(self)),
+                    ByteCode::Return { src } => format!("return {}", src.display_code(self)),
                     ByteCode::Move { dst, src } => format!(
-                        "move dst {} src {}",
+                        "move {} = {}",
                         dst.display_code(self),
                         src.display_code(self)
                     ),
-                    ByteCode::Null { dst } => format!("null dst {}", dst.display_code(self)),
-                    ByteCode::Vector { dst, start, amount } => format!(
-                        "vector dst {} start {start} amount {amount}",
-                        dst.display_code(self)
-                    ),
-                    ByteCode::Object { dst } => format!("object dst {}", dst.display_code(self)),
+                    ByteCode::Null { dst } => format!("null {}", dst.display_code(self)),
+                    ByteCode::Vector { dst, start, amount } =>
+                        format!("vector {} : reg@{start} + {amount}", dst.display_code(self)),
+                    ByteCode::Object { dst } => format!("object {}", dst.display_code(self)),
                     ByteCode::SetField { dst, field, src } => format!(
-                        "setfield dst {} field {} src {}",
+                        "setfield {} . {} = {}",
                         dst.display_code(self),
                         field.display_code(self),
                         src.display_code(self)
@@ -341,18 +358,18 @@ impl Display for Closure {
                         left,
                         right,
                     } => format!(
-                        "binary {op:?} dst {} right {} left {}",
+                        "binary {} = {} {op:?} {}",
                         dst.display_code(self),
                         left.display_code(self),
                         right.display_code(self)
                     ),
                     ByteCode::Unary { op, dst, right } => format!(
-                        "unary {op:?} dst {} right {}",
+                        "unary {} = {op:?} {}",
                         dst.display_code(self),
                         right.display_code(self)
                     ),
                     ByteCode::Field { dst, head, field } => format!(
-                        "field dst {} head {} field {}",
+                        "field {} = {} . {}",
                         dst.display_code(self),
                         head.display_code(self),
                         field.display_code(self)
@@ -366,7 +383,7 @@ impl Display for Closure {
         }
         for constant in self.consts.iter() {
             if let Value::Function(FunctionKind::Function(func)) = constant {
-                write!(f, "\n{func}")?;
+                write!(f, "\n{}", func.borrow())?;
             }
         }
         Ok(())
