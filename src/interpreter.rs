@@ -554,6 +554,20 @@ impl Interpreter {
     }
 }
 
+impl Value {
+    pub fn typ(&self) -> &'static str {
+        match self {
+            Value::Null => "null",
+            Value::Int(_) => "int",
+            Value::Float(_) => "float",
+            Value::Bool(_) => "bool",
+            Value::String(_) => "string",
+            Value::Vector(_) => "vector",
+            Value::Object(_) => "object",
+            Value::Function(_) => "function",
+        }
+    }
+}
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

@@ -17,12 +17,11 @@ A light weight interpreted programming language wirtten in Rust
 ## Environment
 - [x] function `setmeta(object, meta)`: set the meta information of an object
 - [x] function `error(string)`: raise an error
-- [ ] module `vec`
+- [x] module `vec`
   - len(): 
   - push(value): push on front
   - pop(idx = vec.len()): pop index of
   - insert(idx, value): insert into the vector at idx
-  - map(func): map every value with func
   - pos(func): get postion of value
 - [ ] module `math`
   - floor(n)
