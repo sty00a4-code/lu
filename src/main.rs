@@ -22,7 +22,7 @@ fn main() {
     let text = match fs::read_to_string(&args.path) {
         Ok(text) => text,
         Err(err) => {
-            eprintln!("ERROR {err}");
+            eprintln!("ERROR: {err}");
             exit(1);
         }
     };
