@@ -8,7 +8,7 @@ pub mod std_env;
 use args::LuArgs;
 use clap::Parser;
 use oneparse::{parse, position::Located};
-use std::{fs, process::exit, cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fs, process::exit, rc::Rc};
 
 use crate::{
     compiler::{Compilable, Compiler},

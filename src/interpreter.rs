@@ -1,9 +1,10 @@
 use oneparse::position::{Located, Positon};
 use std::{
+    cell::{Ref, RefCell},
     collections::HashMap,
     error::Error,
     fmt::{Debug, Display},
-    cell::{RefCell, Ref}, rc::Rc,
+    rc::Rc,
 };
 
 use crate::{
@@ -66,13 +67,18 @@ impl Interpreter {
         self.globals = globals;
         self
     }
-    pub fn enter_call(&mut self, closure: Rc<RefCell<Closure>>, args: Vec<Value>, dst: Option<Location>) {
+    pub fn enter_call(
+        &mut self,
+        closure: Rc<RefCell<Closure>>,
+        args: Vec<Value>,
+        dst: Option<Location>,
+    ) {
         let call_frame = CallFrame {
             closure: RefCell::clone(&closure),
             ip: 0,
             stack_base: self.stack.len(),
             dst,
-            path: closure.borrow().path.clone()
+            path: closure.borrow().path.clone(),
         };
         for i in 0..call_frame.closure.borrow().args {
             self.stack.push(args.get(i).cloned().unwrap_or_default());
@@ -168,7 +174,10 @@ impl Interpreter {
         }
     }
 
-    pub fn run(&mut self, closure: Rc<RefCell<Closure>>) -> Result<Option<Value>, Located<RunTimeError>> {
+    pub fn run(
+        &mut self,
+        closure: Rc<RefCell<Closure>>,
+    ) -> Result<Option<Value>, Located<RunTimeError>> {
         self.enter_call(closure, vec![], Some(Location::Global(0)));
         loop {
             if self.step()? {
@@ -530,15 +539,19 @@ impl Interpreter {
                 let register = self.location(dst).expect("location not found");
                 *register = match &head {
                     Value::Object(object) => match field {
-                        Value::String(field) => {
-                            object.borrow().map.get(field.as_str()).cloned().unwrap_or_default()
-                        }
+                        Value::String(field) => object
+                            .borrow()
+                            .map
+                            .get(field.as_str())
+                            .cloned()
+                            .unwrap_or_default(),
                         field => {
                             return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
                         }
                     },
                     Value::Vector(vector) => match field {
-                        Value::Int(index) => vector.borrow()
+                        Value::Int(index) => vector
+                            .borrow()
                             .get(index as u32 as usize)
                             .cloned()
                             .unwrap_or_default(),
@@ -692,8 +705,8 @@ impl<T: Into<Value>> From<Option<T>> for Value {
 impl<T: Into<Value>> From<Vec<T>> for Value {
     fn from(value: Vec<T>) -> Self {
         Self::Vector(Rc::new(RefCell::new(
-                    value.into_iter().map(|value| value.into()).collect(),
-                )))
+            value.into_iter().map(|value| value.into()).collect(),
+        )))
     }
 }
 impl TryFrom<Value> for i32 {

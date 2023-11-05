@@ -1,8 +1,8 @@
-use std::{collections::HashMap, rc::Rc, cell::RefCell};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use oneparse::position::{Located, Positon};
 
-use crate::interpreter::{FunctionKind, Interpreter, RunTimeError, Value, Object};
+use crate::interpreter::{FunctionKind, Interpreter, Object, RunTimeError, Value};
 
 macro_rules! make_module {
     ($name:literal : $($var:literal = $value:expr),*) => {
@@ -62,31 +62,37 @@ pub fn std_env() -> HashMap<String, Value> {
         "exit".into(),
         Value::Function(FunctionKind::NativeFunction(_exit)),
     );
-    env.insert("math".to_string(), make_module!("math":
-        "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
-        "ceil" = Value::Function(FunctionKind::NativeFunction(_math_ceil)),
-        "round" = Value::Function(FunctionKind::NativeFunction(_math_round)),
-        "abs" = Value::Function(FunctionKind::NativeFunction(_math_abs)),
-        "cos" = Value::Function(FunctionKind::NativeFunction(_math_cos)),
-        "sin" = Value::Function(FunctionKind::NativeFunction(_math_sin)),
-        "tan" = Value::Function(FunctionKind::NativeFunction(_math_tan)),
-        "acos" = Value::Function(FunctionKind::NativeFunction(_math_acos)),
-        "asin" = Value::Function(FunctionKind::NativeFunction(_math_asin)),
-        "atan" = Value::Function(FunctionKind::NativeFunction(_math_atan)),
-        "acosh" = Value::Function(FunctionKind::NativeFunction(_math_acosh)),
-        "asinh" = Value::Function(FunctionKind::NativeFunction(_math_asinh)),
-        "atanh" = Value::Function(FunctionKind::NativeFunction(_math_atanh)),
-        "atan2" = Value::Function(FunctionKind::NativeFunction(_math_atan2))
-    ));
-    env.insert("vec".to_string(), make_module!("vec":
-        "len" = Value::Function(FunctionKind::NativeFunction(_vec_len)),
-        "push" = Value::Function(FunctionKind::NativeFunction(_vec_push)),
-        "insert" = Value::Function(FunctionKind::NativeFunction(_vec_insert)),
-        "pop" = Value::Function(FunctionKind::NativeFunction(_vec_pop)),
-        "remove" = Value::Function(FunctionKind::NativeFunction(_vec_remove)),
-        "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos))
-    ));
-    
+    env.insert(
+        "math".to_string(),
+        make_module!("math":
+            "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
+            "ceil" = Value::Function(FunctionKind::NativeFunction(_math_ceil)),
+            "round" = Value::Function(FunctionKind::NativeFunction(_math_round)),
+            "abs" = Value::Function(FunctionKind::NativeFunction(_math_abs)),
+            "cos" = Value::Function(FunctionKind::NativeFunction(_math_cos)),
+            "sin" = Value::Function(FunctionKind::NativeFunction(_math_sin)),
+            "tan" = Value::Function(FunctionKind::NativeFunction(_math_tan)),
+            "acos" = Value::Function(FunctionKind::NativeFunction(_math_acos)),
+            "asin" = Value::Function(FunctionKind::NativeFunction(_math_asin)),
+            "atan" = Value::Function(FunctionKind::NativeFunction(_math_atan)),
+            "acosh" = Value::Function(FunctionKind::NativeFunction(_math_acosh)),
+            "asinh" = Value::Function(FunctionKind::NativeFunction(_math_asinh)),
+            "atanh" = Value::Function(FunctionKind::NativeFunction(_math_atanh)),
+            "atan2" = Value::Function(FunctionKind::NativeFunction(_math_atan2))
+        ),
+    );
+    env.insert(
+        "vec".to_string(),
+        make_module!("vec":
+            "len" = Value::Function(FunctionKind::NativeFunction(_vec_len)),
+            "push" = Value::Function(FunctionKind::NativeFunction(_vec_push)),
+            "insert" = Value::Function(FunctionKind::NativeFunction(_vec_insert)),
+            "pop" = Value::Function(FunctionKind::NativeFunction(_vec_pop)),
+            "remove" = Value::Function(FunctionKind::NativeFunction(_vec_remove)),
+            "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos))
+        ),
+    );
+
     env
 }
 pub fn _print(
@@ -94,7 +100,13 @@ pub fn _print(
     args: Vec<Value>,
     _: &Positon,
 ) -> Result<Option<Value>, Located<RunTimeError>> {
-    println!("{}", args.into_iter().map(|value| value.to_string()).collect::<Vec<String>>().join("\t"));
+    println!(
+        "{}",
+        args.into_iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<String>>()
+            .join("\t")
+    );
     Ok(None)
 }
 pub fn _setmeta(

@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, cell::RefCell, rc::Rc};
+use std::{cell::RefCell, error::Error, fmt::Display, rc::Rc};
 
 use oneparse::{
     parser::{Parsable, Parser},
@@ -800,8 +800,7 @@ impl Compilable for Located<Statement> {
                             },
                     } => {
                         let dst = head.compile(compiler)?;
-                        let field =
-                            Source::Const(compiler.new_const(Value::String(field)));
+                        let field = Source::Const(compiler.new_const(Value::String(field)));
                         compiler.write(ByteCode::SetField { dst, field, src }, pos);
                         Ok(())
                     }
@@ -944,9 +943,9 @@ impl Compilable for Located<Statement> {
                 body.compile(compiler)?;
                 compiler.write(ByteCode::Return { src: Source::Null }, pos.clone());
                 let closure = compiler.pop_closure().expect("no closure");
-                let src = Source::Const(
-                    compiler.new_const(Value::Function(FunctionKind::Function(Rc::new(RefCell::new(closure))))),
-                );
+                let src = Source::Const(compiler.new_const(Value::Function(
+                    FunctionKind::Function(Rc::new(RefCell::new(closure))),
+                )));
                 match path {
                     Path::Ident(Ident(ident)) => {
                         let dst = compiler.get_local(&ident);
@@ -962,8 +961,7 @@ impl Compilable for Located<Statement> {
                             },
                     } => {
                         let dst = head.compile(compiler)?;
-                        let field =
-                            Source::Const(compiler.new_const(Value::String(field)));
+                        let field = Source::Const(compiler.new_const(Value::String(field)));
                         compiler.write(ByteCode::SetField { dst, field, src }, pos);
                         Ok(())
                     }
