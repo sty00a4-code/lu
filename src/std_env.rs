@@ -623,7 +623,10 @@ impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Object {
                 map.insert("value".to_string(), value.into());
                 Object {
                     map,
-                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
+                    meta: Some(Rc::new(RefCell::new(Object {
+                        map: meta,
+                        meta: None,
+                    }))),
                 }
             }
             Err(error) => {
@@ -632,7 +635,10 @@ impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Object {
                 map.insert("error".to_string(), error.into());
                 Object {
                     map,
-                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
+                    meta: Some(Rc::new(RefCell::new(Object {
+                        map: meta,
+                        meta: None,
+                    }))),
                 }
             }
         }
@@ -649,7 +655,10 @@ impl<T: Into<Value>> From<Option<T>> for Object {
                 map.insert("value".to_string(), value.into());
                 Object {
                     map,
-                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
+                    meta: Some(Rc::new(RefCell::new(Object {
+                        map: meta,
+                        meta: None,
+                    }))),
                 }
             }
             None => {
@@ -657,26 +666,27 @@ impl<T: Into<Value>> From<Option<T>> for Object {
                 map.insert("type".to_string(), Value::String("none".to_string()));
                 Object {
                     map,
-                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
+                    meta: Some(Rc::new(RefCell::new(Object {
+                        map: meta,
+                        meta: None,
+                    }))),
                 }
             }
         }
     }
 }
-impl<T: TryFrom<Value, Error = ()>, E: TryFrom<Value, Error = ()>> TryFrom<Object> for Result<T, E> {
+impl<T: TryFrom<Value, Error = ()>, E: TryFrom<Value, Error = ()>> TryFrom<Object>
+    for Result<T, E>
+{
     type Error = ();
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         let Value::String(typ) = value.get("type").ok_or(())? else {
-            return Err(())
+            return Err(());
         };
         match typ.as_str() {
-            "ok" => {
-                Ok(Ok(T::try_from(value.get("value").unwrap_or_default())?))
-            }
-            "error" => {
-                Ok(Err(E::try_from(value.get("error").unwrap_or_default())?))
-            }
-            _ => Err(())
+            "ok" => Ok(Ok(T::try_from(value.get("value").unwrap_or_default())?)),
+            "error" => Ok(Err(E::try_from(value.get("error").unwrap_or_default())?)),
+            _ => Err(()),
         }
     }
 }
