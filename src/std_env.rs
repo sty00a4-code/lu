@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, path::PathBuf};
 
 use oneparse::position::{Located, Positon};
 
@@ -544,4 +544,62 @@ pub fn _math_atan2(
             Ok(Some(Value::Float(value.atan2(value2))))
         }
     )
+}
+
+impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Object {
+    fn from(val: Result<T, E>) -> Self {
+        let mut meta = HashMap::new();
+        meta.insert("__name".to_string(), Value::String("result".to_string()));
+        let meta = Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None })));
+        match val {
+            Ok(value) => {
+                let mut map = HashMap::new();
+                map.insert("type".to_string(), Value::String("ok".to_string()));
+                map.insert("value".to_string(), value.into());
+                let mut meta = HashMap::new();
+                meta.insert("__name".to_string(), Value::String("result".to_string()));
+                Object {
+                    map,
+                    meta: Some(Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None }))))
+                }
+            }
+            Err(error) => {
+                let mut map = HashMap::new();
+                map.insert("type".to_string(), Value::String("ok".to_string()));
+                map.insert("error".to_string(), error.into());
+                Object {
+                    map,
+                    meta: Some(meta)
+                }
+            }
+        }
+    }
+}
+impl<T: Into<Value>> From<Option<T>> for Object {
+    fn from(val: Option<T>) -> Self {
+        let mut meta = HashMap::new();
+        meta.insert("__name".to_string(), Value::String("option".to_string()));
+        let meta = Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None })));
+        match val {
+            Some(value) => {
+                let mut map = HashMap::new();
+                map.insert("type".to_string(), Value::String("some".to_string()));
+                map.insert("value".to_string(), value.into());
+                let mut meta = HashMap::new();
+                meta.insert("__name".to_string(), Value::String("result".to_string()));
+                Object {
+                    map,
+                    meta: Some(Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None }))))
+                }
+            }
+            None => {
+                let mut map = HashMap::new();
+                map.insert("type".to_string(), Value::String("none".to_string()));
+                Object {
+                    map,
+                    meta: Some(meta)
+                }
+            }
+        }
+    }
 }
