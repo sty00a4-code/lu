@@ -12,7 +12,7 @@ macro_rules! make_module {
                 meta: {
                     let mut meta = Object::default();
                     meta.map.insert("__name".to_string(), Value::String($name.to_string()));
-                    Some(Box::new(Rc::new(RefCell::new(meta))))
+                    Some(Rc::new(RefCell::new(meta)))
                 },
                 ..Default::default()
             };
@@ -26,6 +26,8 @@ macro_rules! make_module {
 macro_rules! collect_args {
     ($args:ident $pos:ident : $($var:pat => if ! $value:expr),* => $body:block) => {
         {
+            #[allow(unused_variables)]
+            #[allow(unused_mut)]
             let mut arg_idx = 0;
             $(
                 arg_idx += 1;
@@ -62,6 +64,23 @@ pub fn std_env() -> HashMap<String, Value> {
         "exit".into(),
         Value::Function(FunctionKind::NativeFunction(_exit)),
     );
+    env.insert(
+        "ok".into(),
+        Value::Function(FunctionKind::NativeFunction(_ok)),
+    );
+    env.insert(
+        "err".into(),
+        Value::Function(FunctionKind::NativeFunction(_err)),
+    );
+    env.insert(
+        "some".into(),
+        Value::Function(FunctionKind::NativeFunction(_some)),
+    );
+    env.insert(
+        "none".into(),
+        Value::Function(FunctionKind::NativeFunction(_none)),
+    );
+
     env.insert(
         "math".to_string(),
         make_module!("math":
@@ -119,7 +138,7 @@ pub fn _setmeta(
         meta => if ! Value::default()
         => {
             if let Value::Object(meta) = meta {
-                object.borrow_mut().meta = Some(Box::new(meta));
+                object.borrow_mut().meta = Some(meta);
             }
             Ok(Some(Value::Object(object)))
         }
@@ -134,7 +153,7 @@ pub fn _getmeta(
         Value::Object(object) => if ! Value::Object(Default::default())
         => {
             let object = object.borrow();
-            Ok(object.meta.clone().map(|meta| *meta).map(Value::Object))
+            Ok(object.meta.clone().map(Value::Object))
         }
     )
 }
@@ -162,6 +181,53 @@ pub fn _exit(
         Value::Int(code) => if ! Value::Int(Default::default())
         => {
             std::process::exit(code);
+        }
+    )
+}
+pub fn _ok(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::default()
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(Ok::<Value, Value>(value).into())))))
+        }
+    )
+}
+pub fn _err(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::default()
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(Err::<Value, Value>(value).into())))))
+        }
+    )
+}
+pub fn _some(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::default()
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(Some(value).into())))))
+        }
+    )
+}
+pub fn _none(
+    _: &mut Interpreter,
+    _: Vec<Value>,
+    _: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(None::<Value>.into())))))
         }
     )
 }
@@ -549,27 +615,24 @@ pub fn _math_atan2(
 impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Object {
     fn from(val: Result<T, E>) -> Self {
         let mut meta = HashMap::new();
-        meta.insert("__name".to_string(), Value::String("result".to_string()));
-        let meta = Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None })));
+        meta.insert("__name".to_string(), Value::String("option".to_string()));
         match val {
             Ok(value) => {
                 let mut map = HashMap::new();
                 map.insert("type".to_string(), Value::String("ok".to_string()));
                 map.insert("value".to_string(), value.into());
-                let mut meta = HashMap::new();
-                meta.insert("__name".to_string(), Value::String("result".to_string()));
                 Object {
                     map,
-                    meta: Some(Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None }))))
+                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
                 }
             }
             Err(error) => {
                 let mut map = HashMap::new();
-                map.insert("type".to_string(), Value::String("ok".to_string()));
+                map.insert("type".to_string(), Value::String("error".to_string()));
                 map.insert("error".to_string(), error.into());
                 Object {
                     map,
-                    meta: Some(meta)
+                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
                 }
             }
         }
@@ -579,17 +642,14 @@ impl<T: Into<Value>> From<Option<T>> for Object {
     fn from(val: Option<T>) -> Self {
         let mut meta = HashMap::new();
         meta.insert("__name".to_string(), Value::String("option".to_string()));
-        let meta = Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None })));
         match val {
             Some(value) => {
                 let mut map = HashMap::new();
                 map.insert("type".to_string(), Value::String("some".to_string()));
                 map.insert("value".to_string(), value.into());
-                let mut meta = HashMap::new();
-                meta.insert("__name".to_string(), Value::String("result".to_string()));
                 Object {
                     map,
-                    meta: Some(Box::new(Rc::new(RefCell::new(Object { map: meta, meta: None }))))
+                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
                 }
             }
             None => {
@@ -597,9 +657,26 @@ impl<T: Into<Value>> From<Option<T>> for Object {
                 map.insert("type".to_string(), Value::String("none".to_string()));
                 Object {
                     map,
-                    meta: Some(meta)
+                    meta: Some(Rc::new(RefCell::new(Object { map: meta, meta: None })))
                 }
             }
+        }
+    }
+}
+impl<T: TryFrom<Value, Error = ()>, E: TryFrom<Value, Error = ()>> TryFrom<Object> for Result<T, E> {
+    type Error = ();
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        let Value::String(typ) = value.get("type").ok_or(())? else {
+            return Err(())
+        };
+        match typ.as_str() {
+            "ok" => {
+                Ok(Ok(T::try_from(value.get("value").unwrap_or_default())?))
+            }
+            "error" => {
+                Ok(Err(E::try_from(value.get("error").unwrap_or_default())?))
+            }
+            _ => Err(())
         }
     }
 }
