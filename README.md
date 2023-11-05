@@ -23,7 +23,7 @@ A light weight interpreted programming language wirtten in Rust
   - pop(idx = vec.len()): pop index of
   - insert(idx, value): insert into the vector at idx
   - pos(func): get postion of value
-- [ ] module `math`
+- [x] module `math`
   - floor(n)
   - ceil(n)
   - round(n)

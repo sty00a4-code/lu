@@ -63,6 +63,20 @@ pub fn std_env() -> HashMap<String, Value> {
         Value::Function(FunctionKind::NativeFunction(_exit)),
     );
     env.insert("math".to_string(), make_module!("math":
+        "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
+        "ceil" = Value::Function(FunctionKind::NativeFunction(_math_ceil)),
+        "round" = Value::Function(FunctionKind::NativeFunction(_math_round)),
+        "abs" = Value::Function(FunctionKind::NativeFunction(_math_abs)),
+        "cos" = Value::Function(FunctionKind::NativeFunction(_math_cos)),
+        "sin" = Value::Function(FunctionKind::NativeFunction(_math_sin)),
+        "tan" = Value::Function(FunctionKind::NativeFunction(_math_tan)),
+        "acos" = Value::Function(FunctionKind::NativeFunction(_math_acos)),
+        "asin" = Value::Function(FunctionKind::NativeFunction(_math_asin)),
+        "atan" = Value::Function(FunctionKind::NativeFunction(_math_atan)),
+        "acosh" = Value::Function(FunctionKind::NativeFunction(_math_acosh)),
+        "asinh" = Value::Function(FunctionKind::NativeFunction(_math_asinh)),
+        "atanh" = Value::Function(FunctionKind::NativeFunction(_math_atanh)),
+        "atan2" = Value::Function(FunctionKind::NativeFunction(_math_atan2))
     ));
     env.insert("vec".to_string(), make_module!("vec":
         "len" = Value::Function(FunctionKind::NativeFunction(_vec_len)),
@@ -224,6 +238,298 @@ pub fn _vec_pos(
         => {
             let vector = vector.borrow();
             Ok(vector.iter().position(|e| e == &value).map(|index| Value::Int(index as i32)))
+        }
+    )
+}
+
+pub fn _math_floor(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            match value {
+                Value::Int(value) => Ok(Some(Value::Int(value))),
+                Value::Float(value) => Ok(Some(Value::Float(value.floor()))),
+                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            }
+        }
+    )
+}
+pub fn _math_ceil(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            match value {
+                Value::Int(value) => Ok(Some(Value::Int(value))),
+                Value::Float(value) => Ok(Some(Value::Float(value.ceil()))),
+                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            }
+        }
+    )
+}
+pub fn _math_round(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            match value {
+                Value::Int(value) => Ok(Some(Value::Int(value))),
+                Value::Float(value) => Ok(Some(Value::Float(value.round()))),
+                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            }
+        }
+    )
+}
+pub fn _math_abs(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            match value {
+                Value::Int(value) => Ok(Some(Value::Int(value.abs()))),
+                Value::Float(value) => Ok(Some(Value::Float(value.abs()))),
+                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            }
+        }
+    )
+}
+pub fn _math_cos(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.cos())))
+        }
+    )
+}
+pub fn _math_sin(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.sin())))
+        }
+    )
+}
+pub fn _math_tan(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.tan())))
+        }
+    )
+}
+pub fn _math_acos(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.acos())))
+        }
+    )
+}
+pub fn _math_asin(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.asin())))
+        }
+    )
+}
+pub fn _math_atan(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.atan())))
+        }
+    )
+}
+pub fn _math_cosh(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.cosh())))
+        }
+    )
+}
+pub fn _math_sinh(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.sinh())))
+        }
+    )
+}
+pub fn _math_tanh(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.tanh())))
+        }
+    )
+}
+pub fn _math_acosh(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.acosh())))
+        }
+    )
+}
+pub fn _math_asinh(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.asinh())))
+        }
+    )
+}
+pub fn _math_atanh(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.atanh())))
+        }
+    )
+}
+pub fn _math_atan2(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Float(Default::default()),
+        value2 => if ! Value::Float(Default::default())
+        => {
+            let value = match value {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            let value2 = match value2 {
+                Value::Int(value) => value as f32,
+                Value::Float(value) => value,
+                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+            };
+            Ok(Some(Value::Float(value.atan2(value2))))
         }
     )
 }
