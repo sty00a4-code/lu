@@ -259,8 +259,12 @@ impl Parsable<Token> for Statement {
             let Some(Located {
                 value: token,
                 pos: token_pos,
-            }) = parser.token_ref() else {
-                return Err(Located::new(ParserError::UnexpectedEndOfFile, Positon::default()))
+            }) = parser.token_ref()
+            else {
+                return Err(Located::new(
+                    ParserError::UnexpectedEndOfFile,
+                    Positon::default(),
+                ));
             };
             return match token {
                 Token::LParan => {
@@ -294,7 +298,13 @@ impl Parsable<Token> for Statement {
                 Token::String(_) | Token::LBrace => {
                     let expr = Atom::parse(parser)?.map(Expression::Atom);
                     pos.extend(&expr.pos);
-                    Ok(Located::new(Statement::Call { func: path, args: vec![expr] }, pos))
+                    Ok(Located::new(
+                        Statement::Call {
+                            func: path,
+                            args: vec![expr],
+                        },
+                        pos,
+                    ))
                 }
                 Token::Equal => {
                     expect!(parser);
@@ -302,7 +312,10 @@ impl Parsable<Token> for Statement {
                     pos.extend(&expr.pos);
                     Ok(Located::new(Self::Assign { path, expr }, pos))
                 }
-                token => Err(Located::new(ParserError::UnexpectedToken(token.clone()), token_pos.clone())),
+                token => Err(Located::new(
+                    ParserError::UnexpectedToken(token.clone()),
+                    token_pos.clone(),
+                )),
             };
         }
         let Located {
@@ -539,13 +552,25 @@ impl Expression {
                         pos: end_pos,
                     } = expect_token!(parser: RParan);
                     pos.extend(&end_pos);
-                    call = Located::new(Self::Call { func: Box::new(call), args }, pos)
+                    call = Located::new(
+                        Self::Call {
+                            func: Box::new(call),
+                            args,
+                        },
+                        pos,
+                    )
                 }
                 Token::String(_) | Token::LBrace => {
                     let mut pos = call.pos.clone();
                     let expr = Atom::parse(parser)?.map(Self::Atom);
                     pos.extend(&expr.pos);
-                    call = Located::new(Self::Call { func: Box::new(call), args: vec![expr] }, pos)
+                    call = Located::new(
+                        Self::Call {
+                            func: Box::new(call),
+                            args: vec![expr],
+                        },
+                        pos,
+                    )
                 }
                 _ => break,
             }
