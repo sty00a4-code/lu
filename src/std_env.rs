@@ -61,6 +61,10 @@ pub fn std_env() -> HashMap<String, Value> {
         Value::Function(FunctionKind::NativeFunction(_error)),
     );
     env.insert(
+        "assert".into(),
+        Value::Function(FunctionKind::NativeFunction(_assert)),
+    );
+    env.insert(
         "exit".into(),
         Value::Function(FunctionKind::NativeFunction(_exit)),
     );
@@ -181,6 +185,25 @@ pub fn _error(
                 RunTimeError::Custom(msg),
                 pos.clone(),
             ))
+        }
+    )
+}
+pub fn _assert(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        cond => if ! Value::Bool(Default::default())
+        => {
+            if bool::from(&cond) {
+                Ok(None)
+            } else {
+                Err(Located::new(
+                    RunTimeError::Custom("assert failed!".to_string()),
+                    pos.clone(),
+                ))
+            }
         }
     )
 }
