@@ -439,6 +439,9 @@ impl Interpreter {
                         (Value::Float(left), Value::Int(right)) => {
                             Value::Float(left + right as f32)
                         }
+                        (Value::String(left), Value::String(right)) => {
+                            Value::String(left + &right)
+                        }
                         (left, right) => {
                             return Err(Located::new(
                                 RunTimeError::Binary(op, left, right),
@@ -488,6 +491,9 @@ impl Interpreter {
                         }
                         (Value::Float(left), Value::Int(right)) => {
                             Value::Float(left * right as f32)
+                        }
+                        (Value::String(left), Value::Int(right)) => {
+                            Value::String(left.repeat(right.unsigned_abs() as usize))
                         }
                         (left, right) => {
                             return Err(Located::new(
