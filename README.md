@@ -20,7 +20,7 @@ A light weight interpreted programming language wirtten in Rust
 - [x] module `vec`
   - len(): 
   - push(value): push on front
-  - pop(idx = vec.len()): pop index of
+  - pop(idx): pop index of
   - insert(idx, value): insert into the vector at idx
   - pos(func): get postion of value
 - [x] module `math`
