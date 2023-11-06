@@ -22,8 +22,8 @@ use crate::{
 pub fn generate_ast(text: String) -> Result<Located<Chunk>, Located<String>> {
     parse::<Token, Chunk>(text)
 }
-pub fn compile_ast(ast: Located<Chunk>, path: &String) -> Result<Closure, Located<CompileError>> {
-    let mut compiler = Compiler::new(path.clone());
+pub fn compile_ast(ast: Located<Chunk>, path: &str) -> Result<Closure, Located<CompileError>> {
+    let mut compiler = Compiler::new(path.to_string());
     ast.compile(&mut compiler)?;
     Ok(compiler.closures.pop().unwrap())
 }
