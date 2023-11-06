@@ -74,6 +74,7 @@ pub enum ByteCode {
 pub enum Source {
     Register(usize),
     Const(usize),
+    Bool(bool),
     Null,
     Global(usize),
 }
@@ -271,6 +272,7 @@ impl Source {
                     "const@{addr}={:?}",
                     closure.consts.get(*addr).cloned().unwrap_or_default()
                 ),
+                Source::Bool(v) => Value::Bool(*v).to_string(),
                 Source::Null => Value::Null.to_string(),
                 Source::Global(addr) => format!(
                     "glob@{addr}={:?}",

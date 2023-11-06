@@ -1095,7 +1095,7 @@ impl Compilable for Located<Atom> {
             Atom::Null => Ok(Source::Null),
             Atom::Int(v) => Ok(Source::Const(compiler.new_const(Value::Int(v)))),
             Atom::Float(v) => Ok(Source::Const(compiler.new_const(Value::Float(v)))),
-            Atom::Bool(v) => Ok(Source::Const(compiler.new_const(Value::Bool(v)))),
+            Atom::Bool(v) => Ok(Source::Bool(v)),
             Atom::String(v) => Ok(Source::Const(compiler.new_const(Value::String(v)))),
             Atom::Expression(expr) => Ok((*expr).compile(compiler)?),
             Atom::Vector(vector) => {
