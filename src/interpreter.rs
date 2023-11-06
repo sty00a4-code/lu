@@ -813,13 +813,13 @@ impl Display for RunTimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RunTimeError::Binary(op, left, right) => {
-                write!(f, "cannot perform {op:?} on {left:?} with {right:?}")
+                write!(f, "cannot perform '{op}' on {} with {}", left.typ(), right.typ())
             }
-            RunTimeError::Unary(op, right) => write!(f, "cannot perform {op:?} on {right:?}"),
-            RunTimeError::NotCallable(value) => write!(f, "cannot call {value:?}"),
-            RunTimeError::InvalidFieldHead(head) => write!(f, "cannot get field of {head:?}"),
+            RunTimeError::Unary(op, right) => write!(f, "cannot perform '{op}' on {}", right.typ()),
+            RunTimeError::NotCallable(value) => write!(f, "cannot call {}", value.typ()),
+            RunTimeError::InvalidFieldHead(head) => write!(f, "cannot get field of {}", head.typ()),
             RunTimeError::InvalidField(head, field) => {
-                write!(f, "cannot get field of {head:?} with {field:?}")
+                write!(f, "cannot get field of {} with {}", head.typ(), field.typ())
             }
             RunTimeError::Custom(string) => write!(f, "{string}"),
         }

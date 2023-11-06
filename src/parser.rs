@@ -1396,6 +1396,34 @@ impl Compilable for Located<Path> {
     }
 }
 
+impl Display for BinaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::And => write!(f, "&"),
+            Self::Or => write!(f, "|"),
+            Self::EQ => write!(f, "=="),
+            Self::NE => write!(f, "!="),
+            Self::LT => write!(f, "<"),
+            Self::GT => write!(f, ">"),
+            Self::LE => write!(f, "<="),
+            Self::GE => write!(f, ">="),
+            Self::Add => write!(f, "+"),
+            Self::Sub => write!(f, "-"),
+            Self::Mul => write!(f, "*"),
+            Self::Div => write!(f, "/"),
+            Self::Mod => write!(f, "%"),
+            Self::Pow => write!(f, "^"),
+        }
+    }
+}
+impl Display for UnaryOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnaryOperator::Not => write!(f, "!"),
+            UnaryOperator::Neg => write!(f, "-"),
+        }
+    }
+}
 impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
