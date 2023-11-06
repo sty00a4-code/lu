@@ -98,6 +98,8 @@ pub struct Compiler {
     pub registers: Vec<usize>,
 
     scope_stacks: Vec<Vec<Scope>>,
+    break_stack: Vec<Vec<usize>>,
+    continue_stack: Vec<Vec<usize>>,
 }
 #[derive(Debug, Clone, Default)]
 pub struct Scope {
@@ -118,6 +120,8 @@ impl Compiler {
             path,
             registers: vec![0],
             scope_stacks: vec![vec![Scope::default()]],
+            break_stack: vec![],
+            continue_stack: vec![],
         }
     }
     pub fn push_closure(&mut self, closure: Closure) {
@@ -153,6 +157,19 @@ impl Compiler {
     }
     pub fn get_scope_mut(&mut self) -> Option<&mut Scope> {
         self.get_scope_stack_mut()?.last_mut()
+    }
+    pub fn push_control_flow_stack(&mut self) {
+        self.break_stack.push(vec![]);
+        self.continue_stack.push(vec![]);
+    }
+    pub fn pop_control_flow_stack(&mut self) -> (Option<Vec<usize>>, Option<Vec<usize>>) {
+        (self.break_stack.pop(), self.continue_stack.pop())
+    }
+    pub fn get_break_stack_mut(&mut self) -> Option<&mut Vec<usize>> {
+        self.break_stack.last_mut()
+    }
+    pub fn get_continue_stack_mut(&mut self) -> Option<&mut Vec<usize>> {
+        self.continue_stack.last_mut()
     }
     pub fn addr(&self) -> usize {
         let closure = self.get_closure().expect("no current closure");

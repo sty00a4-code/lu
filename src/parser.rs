@@ -44,6 +44,7 @@ pub enum Statement {
         body: Located<Block>,
     },
     Break,
+    Continue,
     Return(Located<Expression>),
     Function {
         path: Located<Path>,
@@ -295,7 +296,7 @@ impl Parsable<Token> for Statement {
                     pos.extend(&end_pos);
                     Ok(Located::new(Statement::Call { func: path, args }, pos))
                 }
-                Token::String(_) | Token::LBrace => {
+                Token::String(_) => {
                     let expr = Atom::parse(parser)?.map(Expression::Atom);
                     pos.extend(&expr.pos);
                     Ok(Located::new(
@@ -372,6 +373,19 @@ impl Parsable<Token> for Statement {
                 let cond = Expression::parse(parser)?;
                 let body = Block::parse(parser)?;
                 Ok(Located::new(Self::While { cond, body }, pos))
+            }
+            Token::For => {
+                let ident = Ident::parse(parser)?;
+                expect_token!(parser: In);
+                let iter = Expression::parse(parser)?;
+                let body = Block::parse(parser)?;
+                Ok(Located::new(Self::For { ident, iter, body }, pos))
+            }
+            Token::Break => {
+                Ok(Located::new(Self::Break, pos))
+            }
+            Token::Continue => {
+                Ok(Located::new(Self::Continue, pos))
             }
             Token::Function => {
                 let path = Path::parse(parser)?;
@@ -560,7 +574,7 @@ impl Expression {
                         pos,
                     )
                 }
-                Token::String(_) | Token::LBrace => {
+                Token::String(_) => {
                     let mut pos = call.pos.clone();
                     let expr = Atom::parse(parser)?.map(Self::Atom);
                     pos.extend(&expr.pos);
@@ -764,7 +778,10 @@ impl Parsable<Token> for Ident {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum CompileError {}
+pub enum CompileError {
+    NoLoopToBreak,
+    NoLoopToContinue,
+}
 impl Compilable for Located<Chunk> {
     type Error = CompileError;
     type Output = ();
@@ -941,13 +958,98 @@ impl Compilable for Located<Statement> {
                 Ok(())
             }
             Statement::For {
-                ident: _,
-                iter: _,
-                body: _,
+                ident:
+                    Located {
+                        value: Ident(ident),
+                        pos: _,
+                    },
+                iter,
+                body,
             } => {
-                todo!()
+                // setup
+                let idx_iter_reg = compiler.new_register();
+                let init_value_addr = compiler.new_const(Value::Int(0));
+                compiler.write(
+                    ByteCode::Move {
+                        dst: Location::Register(idx_iter_reg),
+                        src: Source::Const(init_value_addr),
+                    },
+                    pos.clone(),
+                );
+                let iter_src = iter.compile(compiler)?;
+
+                // new iteration
+                compiler.push_control_flow_stack();
+                compiler.push_scope();
+                let start_addr = compiler.addr();
+                let element_reg = compiler.new_local(ident);
+                let idx_reg = compiler.new_register();
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(idx_reg),
+                        head: iter_src,
+                        field: Source::Register(idx_iter_reg),
+                    },
+                    pos.clone(),
+                );
+                let check_addr = compiler.write(ByteCode::None, pos.clone());
+                compiler.write(
+                    ByteCode::Move {
+                        dst: Location::Register(element_reg),
+                        src: Source::Register(idx_reg),
+                    },
+                    pos.clone(),
+                );
+
+                body.compile(compiler)?;
+
+                // inc and start over
+                let next_iter_addr = compiler.addr();
+                let inc = compiler.new_const(Value::Int(1));
+                compiler.write(
+                    ByteCode::Binary {
+                        op: BinaryOperator::Add,
+                        dst: Location::Register(idx_iter_reg),
+                        left: Source::Register(idx_iter_reg),
+                        right: Source::Const(inc),
+                    },
+                    pos.clone(),
+                );
+                compiler.write(ByteCode::Jump { addr: start_addr }, pos.clone());
+                
+                // exit
+                let exit_addr = compiler.addr();
+                compiler.overwrite(check_addr, ByteCode::JumpIf { cond: Source::Register(idx_reg), addr: exit_addr, not: true }, pos.clone());
+                
+                compiler.pop_scope();
+                let (breaks, continues) = compiler.pop_control_flow_stack();
+                let (breaks, continues) = (breaks.expect("no control flow stack"), continues.expect("no control flow stack"));
+                for break_addr in breaks {
+                    compiler.overwrite(break_addr, ByteCode::Jump { addr: exit_addr }, pos.clone());
+                }
+                for continue_addr in continues {
+                    compiler.overwrite(continue_addr, ByteCode::Jump { addr: next_iter_addr }, pos.clone());
+                }
+                Ok(())
             }
-            Statement::Break => Ok(()),
+            Statement::Break => {
+                let addr = compiler.write(ByteCode::None, pos.clone());
+                if let Some(breaks) = compiler.get_break_stack_mut() {
+                    breaks.push(addr);
+                    Ok(())
+                } else {
+                    Err(Located::new(CompileError::NoLoopToBreak, pos))
+                }
+            }
+            Statement::Continue => {
+                let addr = compiler.write(ByteCode::None, pos.clone());
+                if let Some(continues) = compiler.get_continue_stack_mut() {
+                    continues.push(addr);
+                    Ok(())
+                } else {
+                    Err(Located::new(CompileError::NoLoopToContinue, pos))
+                }
+            }
             Statement::Return(expr) => {
                 let src = expr.compile(compiler)?;
                 compiler.write(ByteCode::Return { src }, pos);
@@ -1294,8 +1396,11 @@ impl Display for ParserError {
 }
 impl Error for ParserError {}
 impl Display for CompileError {
-    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(())
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompileError::NoLoopToBreak => write!(f, "no loop to break out of here"),
+            CompileError::NoLoopToContinue => write!(f, "no loop to continue here"),
+        }
     }
 }
 impl Error for CompileError {}

@@ -48,6 +48,8 @@ pub enum Token {
     While,
     For,
     In,
+    Break,
+    Continue,
     Function,
 }
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +74,8 @@ impl Token {
             "while" => Self::While,
             "for" => Self::For,
             "in" => Self::In,
+            "break" => Self::Break,
+            "continue" => Self::Continue,
             "function" => Self::Function,
             _ => Self::Ident(ident),
         }
@@ -128,6 +132,8 @@ impl Display for Token {
             Token::While => write!(f, "while"),
             Token::For => write!(f, "for"),
             Token::In => write!(f, "in"),
+            Token::Break => write!(f, "break"),
+            Token::Continue => write!(f, "continue"),
             Token::Function => write!(f, "function"),
         }
     }
