@@ -88,8 +88,8 @@ pub enum Expression {
         right: Box<Located<Self>>,
     },
     Call {
-        func: Located<Atom>,
-        args: Vec<Located<Expression>>,
+        func: Box<Located<Self>>,
+        args: Vec<Located<Self>>,
     },
     Field {
         head: Box<Located<Self>>,
@@ -256,12 +256,15 @@ impl Parsable<Token> for Statement {
         {
             let path = Path::parse(parser)?;
             let mut pos = path.pos.clone();
-            let Located {
+            let Some(Located {
                 value: token,
                 pos: token_pos,
-            } = expect!(parser);
+            }) = parser.token_ref() else {
+                return Err(Located::new(ParserError::UnexpectedEndOfFile, Positon::default()))
+            };
             return match token {
                 Token::LParan => {
+                    expect!(parser);
                     let mut args = vec![];
                     while let Some(Located {
                         value: token,
@@ -288,12 +291,18 @@ impl Parsable<Token> for Statement {
                     pos.extend(&end_pos);
                     Ok(Located::new(Statement::Call { func: path, args }, pos))
                 }
+                Token::String(_) | Token::LBrace => {
+                    let expr = Atom::parse(parser)?.map(Expression::Atom);
+                    pos.extend(&expr.pos);
+                    Ok(Located::new(Statement::Call { func: path, args: vec![expr] }, pos))
+                }
                 Token::Equal => {
+                    expect!(parser);
                     let expr = Expression::parse(parser)?;
                     pos.extend(&expr.pos);
                     Ok(Located::new(Self::Assign { path, expr }, pos))
                 }
-                token => Err(Located::new(ParserError::UnexpectedToken(token), token_pos)),
+                token => Err(Located::new(ParserError::UnexpectedToken(token.clone()), token_pos.clone())),
             };
         }
         let Located {
@@ -496,42 +505,52 @@ impl Expression {
         Ok(head)
     }
     pub fn call(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
-        let atom = Atom::parse(parser)?;
-        if let Some(Located {
-            value: Token::LParan,
+        let mut call = Atom::parse(parser)?.map(Self::Atom);
+        while let Some(Located {
+            value: token,
             pos: _,
         }) = parser.token_ref()
         {
-            parser.token();
-            let mut pos = atom.pos.clone();
-            let mut args = vec![];
-            while let Some(Located {
-                value: token,
-                pos: _,
-            }) = parser.token_ref()
-            {
-                if token == &Token::RParan {
-                    break;
+            match token {
+                Token::LParan => {
+                    parser.token();
+                    let mut pos = call.pos.clone();
+                    let mut args = vec![];
+                    while let Some(Located {
+                        value: token,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
+                        if token == &Token::RParan {
+                            break;
+                        }
+                        args.push(Expression::parse(parser)?);
+                        if let Some(Located {
+                            value: Token::RParan,
+                            pos: _,
+                        }) = parser.token_ref()
+                        {
+                            break;
+                        }
+                        expect_token!(parser: Comma);
+                    }
+                    let Located {
+                        value: _,
+                        pos: end_pos,
+                    } = expect_token!(parser: RParan);
+                    pos.extend(&end_pos);
+                    call = Located::new(Self::Call { func: Box::new(call), args }, pos)
                 }
-                args.push(Expression::parse(parser)?);
-                if let Some(Located {
-                    value: Token::RParan,
-                    pos: _,
-                }) = parser.token_ref()
-                {
-                    break;
+                Token::String(_) | Token::LBrace => {
+                    let mut pos = call.pos.clone();
+                    let expr = Atom::parse(parser)?.map(Self::Atom);
+                    pos.extend(&expr.pos);
+                    call = Located::new(Self::Call { func: Box::new(call), args: vec![expr] }, pos)
                 }
-                expect_token!(parser: Comma);
+                _ => break,
             }
-            let Located {
-                value: _,
-                pos: end_pos,
-            } = expect_token!(parser: RParan);
-            pos.extend(&end_pos);
-            Ok(Located::new(Self::Call { func: atom, args }, pos))
-        } else {
-            Ok(atom.map(Self::Atom))
         }
+        Ok(call)
     }
 }
 impl Parsable<Token> for Expression {
