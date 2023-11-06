@@ -381,12 +381,8 @@ impl Parsable<Token> for Statement {
                 let body = Block::parse(parser)?;
                 Ok(Located::new(Self::For { ident, iter, body }, pos))
             }
-            Token::Break => {
-                Ok(Located::new(Self::Break, pos))
-            }
-            Token::Continue => {
-                Ok(Located::new(Self::Continue, pos))
-            }
+            Token::Break => Ok(Located::new(Self::Break, pos)),
+            Token::Continue => Ok(Located::new(Self::Continue, pos)),
             Token::Function => {
                 let path = Path::parse(parser)?;
                 expect_token!(parser: LParan);
@@ -1016,19 +1012,36 @@ impl Compilable for Located<Statement> {
                     pos.clone(),
                 );
                 compiler.write(ByteCode::Jump { addr: start_addr }, pos.clone());
-                
+
                 // exit
                 let exit_addr = compiler.addr();
-                compiler.overwrite(check_addr, ByteCode::JumpIf { cond: Source::Register(idx_reg), addr: exit_addr, not: true }, pos.clone());
-                
+                compiler.overwrite(
+                    check_addr,
+                    ByteCode::JumpIf {
+                        cond: Source::Register(idx_reg),
+                        addr: exit_addr,
+                        not: true,
+                    },
+                    pos.clone(),
+                );
+
                 compiler.pop_scope();
                 let (breaks, continues) = compiler.pop_control_flow_stack();
-                let (breaks, continues) = (breaks.expect("no control flow stack"), continues.expect("no control flow stack"));
+                let (breaks, continues) = (
+                    breaks.expect("no control flow stack"),
+                    continues.expect("no control flow stack"),
+                );
                 for break_addr in breaks {
                     compiler.overwrite(break_addr, ByteCode::Jump { addr: exit_addr }, pos.clone());
                 }
                 for continue_addr in continues {
-                    compiler.overwrite(continue_addr, ByteCode::Jump { addr: next_iter_addr }, pos.clone());
+                    compiler.overwrite(
+                        continue_addr,
+                        ByteCode::Jump {
+                            addr: next_iter_addr,
+                        },
+                        pos.clone(),
+                    );
                 }
                 Ok(())
             }
