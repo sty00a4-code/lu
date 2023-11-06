@@ -160,8 +160,10 @@ impl Interpreter {
         match source {
             Source::Register(register) => self.register(register).cloned(),
             Source::Const(addr) => self.constant(addr),
-            Source::Bool(v) => Some(Value::Bool(v)),
             Source::Null => Some(Value::Null),
+            Source::Int(v) => Some(Value::Int(v)),
+            Source::Float(v) => Some(Value::Float(v)),
+            Source::Bool(v) => Some(Value::Bool(v)),
             Source::Global(addr) => {
                 let ident = match self.constant(addr)? {
                     Value::String(ident) => ident.clone(),

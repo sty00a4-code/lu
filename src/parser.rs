@@ -1415,8 +1415,8 @@ impl Compilable for Located<Atom> {
         match atom {
             Atom::Path(path) => Ok(Located::new(path, pos).compile(compiler)?.into()),
             Atom::Null => Ok(Source::Null),
-            Atom::Int(v) => Ok(Source::Const(compiler.new_const(Value::Int(v)))),
-            Atom::Float(v) => Ok(Source::Const(compiler.new_const(Value::Float(v)))),
+            Atom::Int(v) => Ok(Source::Int(v)),
+            Atom::Float(v) => Ok(Source::Float(v)),
             Atom::Bool(v) => Ok(Source::Bool(v)),
             Atom::String(v) => Ok(Source::Const(compiler.new_const(Value::String(v)))),
             Atom::Expression(expr) => Ok((*expr).compile(compiler)?),

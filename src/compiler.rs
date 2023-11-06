@@ -7,7 +7,7 @@ use crate::{
     parser::{BinaryOperator, UnaryOperator},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum ByteCode {
     None,
@@ -77,12 +77,14 @@ pub enum ByteCode {
         field: Source,
     },
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Source {
     Register(usize),
     Const(usize),
-    Bool(bool),
     Null,
+    Int(i32),
+    Float(f32),
+    Bool(bool),
     Global(usize),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -296,8 +298,10 @@ impl Source {
                     "const@{addr}={:?}",
                     closure.consts.get(*addr).cloned().unwrap_or_default()
                 ),
-                Source::Bool(v) => Value::Bool(*v).to_string(),
                 Source::Null => Value::Null.to_string(),
+                Source::Int(v) => Value::Int(*v).to_string(),
+                Source::Float(v) => Value::Float(*v).to_string(),
+                Source::Bool(v) => Value::Bool(*v).to_string(),
                 Source::Global(addr) => format!(
                     "glob@{addr}={:?}",
                     closure.consts.get(*addr).cloned().unwrap_or_default()
