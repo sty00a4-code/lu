@@ -863,6 +863,7 @@ impl Parsable<Token> for Ident {
 pub enum CompileError {
     NoLoopToBreak,
     NoLoopToContinue,
+    Parsing(String)
 }
 impl Compilable for Located<Chunk> {
     type Error = CompileError;
@@ -1604,6 +1605,7 @@ impl Display for CompileError {
         match self {
             CompileError::NoLoopToBreak => write!(f, "no loop to break out of here"),
             CompileError::NoLoopToContinue => write!(f, "no loop to continue here"),
+            CompileError::Parsing(err) => write!(f, "{err}"),
         }
     }
 }

@@ -7,7 +7,9 @@ pub mod std_env;
 
 use args::LuArgs;
 use clap::Parser;
+use compiler::Closure;
 use oneparse::{parse, position::Located};
+use parser::CompileError;
 use std::{cell::RefCell, fs, process::exit, rc::Rc};
 
 use crate::{
@@ -16,6 +18,15 @@ use crate::{
     lexer::Token,
     parser::Chunk,
 };
+
+pub fn generate_ast(text: String) -> Result<Located<Chunk>, Located<String>> {
+    parse::<Token, Chunk>(text)
+}
+pub fn compile_ast(ast: Located<Chunk>, path: &String) -> Result<Closure, Located<CompileError>> {
+    let mut compiler = Compiler::new(path.clone());
+    ast.compile(&mut compiler)?;
+    Ok(compiler.closures.pop().unwrap())
+}
 
 fn main() {
     let args = LuArgs::parse();
@@ -26,35 +37,29 @@ fn main() {
             exit(1);
         }
     };
-    // dbg!(&text);
-    let ast = match parse::<Token, Chunk>(text) {
-        Ok(ast) => ast,
-        Err(Located { value: err, pos }) => {
-            eprintln!(
-                "ERROR {}:{}:{}: {err}",
-                &args.path,
-                pos.ln.start + 1,
-                pos.col.start + 1
-            );
-            exit(1);
-        }
-    };
     // dbg!(&ast);
-    let main_closure = {
-        let mut compiler = Compiler::new(args.path.clone());
-        match ast.compile(&mut compiler) {
-            Ok(()) => {}
+    let main_closure = match generate_ast(text) {
+        Ok(ast) => match compile_ast(ast, &args.path) {
+            Ok(closure) => closure,
             Err(Located { value: err, pos }) => {
                 eprintln!(
                     "ERROR {}:{}:{}: {err}",
                     &args.path,
                     pos.ln.start + 1,
-                    pos.col.start + 1
+                    pos.col.start + 1,
                 );
                 exit(1);
             }
         }
-        compiler.closures[0].clone()
+        Err(Located { value: err, pos }) => {
+            eprintln!(
+                "ERROR {}:{}:{}: {err}",
+                &args.path,
+                pos.ln.start + 1,
+                pos.col.start + 1,
+            );
+            exit(1);
+        }
     };
     // println!("{}", &main_closure);
     match Interpreter::default()

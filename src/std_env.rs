@@ -1,8 +1,12 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fs, rc::Rc};
 
 use oneparse::position::{Located, Positon};
 
-use crate::interpreter::{FunctionKind, Interpreter, Object, RunTimeError, Value};
+use crate::{
+    compile_ast, generate_ast,
+    interpreter::{FunctionKind, Interpreter, Object, RunTimeError, Value},
+    parser::CompileError,
+};
 
 macro_rules! make_module {
     ($name:literal : $($var:literal = $value:expr),*) => {
@@ -127,6 +131,11 @@ pub fn std_env() -> HashMap<String, Value> {
             "atanh" = Value::Function(FunctionKind::NativeFunction(_math_atanh)),
             "atan2" = Value::Function(FunctionKind::NativeFunction(_math_atan2))
         ),
+    );
+
+    env.insert(
+        "require".to_string(),
+        Value::Function(FunctionKind::NativeFunction(_require)),
     );
 
     env
@@ -701,6 +710,35 @@ pub fn _math_atan2(
                 value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
             };
             Ok(Some(Value::Float(value.atan2(value2))))
+        }
+    )
+}
+
+pub fn _require(
+    interpreter: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos :
+        Value::String(path) => if ! Value::String(Default::default())
+        => {
+            let text = match fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(err) => return Err(Located::new(RunTimeError::FileNotFound(err.to_string()), pos.clone()))
+            };
+            let closure = compile_ast(
+                generate_ast(text)
+                    .map_err(|err| err.map(CompileError::Parsing))
+                    .map_err(|err| err.map(RunTimeError::Compiling))?,
+                &path
+            ).map_err(|err| err.map(RunTimeError::Compiling))?;
+            let mut globals = interpreter.globals.clone();
+            let __module = globals.remove("__module").unwrap_or_default();
+            let mut sub_interpreter = Interpreter::default().with_globals(globals);
+            let value = sub_interpreter.run(Rc::new(RefCell::new(closure)))?;
+            interpreter.globals = sub_interpreter.globals;
+            interpreter.globals.insert("__module".to_string(), __module);
+            Ok(value)
         }
     )
 }

@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     compiler::{ByteCode, Closure, Location, Source},
-    parser::{BinaryOperator, UnaryOperator},
+    parser::{BinaryOperator, UnaryOperator, CompileError},
 };
 
 #[derive(Clone, Default)]
@@ -73,6 +73,8 @@ pub enum RunTimeError {
     InvalidFieldHead(Value),
     InvalidField(Value, Value),
     Custom(String),
+    Compiling(CompileError),
+    FileNotFound(String)
 }
 impl Interpreter {
     pub fn with_globals(mut self, globals: HashMap<String, Value>) -> Self {
@@ -888,6 +890,8 @@ impl Display for RunTimeError {
                 write!(f, "cannot get field of {} with {}", head.typ(), field.typ())
             }
             RunTimeError::Custom(string) => write!(f, "{string}"),
+            RunTimeError::Compiling(err) => write!(f, "{err}"),
+            RunTimeError::FileNotFound(err) => write!(f, "{err}"),
         }
     }
 }
