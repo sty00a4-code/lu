@@ -22,6 +22,7 @@ pub enum Token {
     RBrace,
     Equal,
     Dot,
+    Colon,
     Comma,
 
     Plus,
@@ -108,6 +109,7 @@ impl Display for Token {
             Token::RBrace => write!(f, "}}"),
             Token::Equal => write!(f, "="),
             Token::Dot => write!(f, "."),
+            Token::Colon => write!(f, ":"),
             Token::Comma => write!(f, ","),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
@@ -169,6 +171,7 @@ impl Lexable for Token {
                 }
             }
             '.' => Ok(Some(Located::new(Token::Dot, pos))),
+            ':' => Ok(Some(Located::new(Token::Colon, pos))),
             ',' => Ok(Some(Located::new(Token::Comma, pos))),
             '+' => Ok(Some(Located::new(Token::Plus, pos))),
             '-' => Ok(Some(Located::new(Token::Minus, pos))),

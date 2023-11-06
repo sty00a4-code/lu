@@ -29,6 +29,11 @@ pub enum Statement {
         func: Located<Path>,
         args: Vec<Located<Expression>>,
     },
+    SelfCall {
+        head: Located<Path>,
+        field: Located<Ident>,
+        args: Vec<Located<Expression>>,
+    },
     If {
         cond: Located<Expression>,
         case: Located<Block>,
@@ -90,6 +95,11 @@ pub enum Expression {
     },
     Call {
         func: Box<Located<Self>>,
+        args: Vec<Located<Self>>,
+    },
+    SelfCall {
+        head: Box<Located<Self>>,
+        field: Located<Ident>,
         args: Vec<Located<Self>>,
     },
     Field {
@@ -303,6 +313,43 @@ impl Parsable<Token> for Statement {
                         Statement::Call {
                             func: path,
                             args: vec![expr],
+                        },
+                        pos,
+                    ))
+                }
+                Token::Colon => {
+                    expect!(parser);
+                    let field = Ident::parse(parser)?;
+                    expect_token!(parser: LParan);
+                    let mut args = vec![];
+                    while let Some(Located {
+                        value: token,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
+                        if token == &Token::RParan {
+                            break;
+                        }
+                        args.push(Expression::parse(parser)?);
+                        if let Some(Located {
+                            value: Token::RParan,
+                            pos: _,
+                        }) = parser.token_ref()
+                        {
+                            break;
+                        }
+                        expect_token!(parser: Comma);
+                    }
+                    let Located {
+                        value: _,
+                        pos: end_pos,
+                    } = expect_token!(parser: RParan);
+                    pos.extend(&end_pos);
+                    Ok(Located::new(
+                        Statement::SelfCall {
+                            head: path,
+                            field,
+                            args,
                         },
                         pos,
                     ))
@@ -578,6 +625,45 @@ impl Expression {
                         Self::Call {
                             func: Box::new(call),
                             args: vec![expr],
+                        },
+                        pos,
+                    )
+                }
+                Token::Colon => {
+                    let mut pos = call.pos.clone();
+                    parser.token();
+                    let field = Ident::parse(parser)?;
+                    pos.extend(&field.pos);
+                    expect_token!(parser: LParan);
+                    let mut args = vec![];
+                    while let Some(Located {
+                        value: token,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
+                        if token == &Token::RParan {
+                            break;
+                        }
+                        args.push(Expression::parse(parser)?);
+                        if let Some(Located {
+                            value: Token::RParan,
+                            pos: _,
+                        }) = parser.token_ref()
+                        {
+                            break;
+                        }
+                        expect_token!(parser: Comma);
+                    }
+                    let Located {
+                        value: _,
+                        pos: end_pos,
+                    } = expect_token!(parser: RParan);
+                    pos.extend(&end_pos);
+                    call = Located::new(
+                        Self::SelfCall {
+                            head: Box::new(call),
+                            field,
+                            args,
                         },
                         pos,
                     )
@@ -904,6 +990,44 @@ impl Compilable for Located<Statement> {
                 );
                 Ok(())
             }
+            Statement::SelfCall {
+                head,
+                field:
+                    Located {
+                        value: Ident(field),
+                        pos: _,
+                    },
+                args,
+            } => {
+                let head = head.compile(compiler)?;
+                let field = Source::Const(compiler.new_const(Value::String(field)));
+                let amount = args.len();
+                let start = *compiler.get_registers().expect("no registers");
+                for _ in start..start + amount {
+                    compiler.new_register();
+                }
+                for (dst, arg) in args.into_iter().enumerate() {
+                    let arg_dst = arg.compile(compiler)?;
+                    compiler.write(
+                        ByteCode::Move {
+                            dst: Location::Register(start + dst),
+                            src: arg_dst,
+                        },
+                        pos.clone(),
+                    );
+                }
+                compiler.write(
+                    ByteCode::SelfCall {
+                        head: head.into(),
+                        field,
+                        start,
+                        amount,
+                        dst: None,
+                    },
+                    pos,
+                );
+                Ok(())
+            }
             Statement::If {
                 cond,
                 case,
@@ -1198,6 +1322,45 @@ impl Compilable for Located<Expression> {
                 compiler.write(
                     ByteCode::Call {
                         func,
+                        start,
+                        amount,
+                        dst: Some(Location::Register(dst)),
+                    },
+                    pos,
+                );
+                Ok(Source::Register(dst))
+            }
+            Expression::SelfCall {
+                head,
+                field:
+                    Located {
+                        value: Ident(field),
+                        pos: _,
+                    },
+                args,
+            } => {
+                let dst = compiler.new_register();
+                let head = head.compile(compiler)?;
+                let field = Source::Const(compiler.new_const(Value::String(field)));
+                let amount = args.len();
+                let start = *compiler.get_registers().expect("no registers");
+                for _ in start..start + amount {
+                    compiler.new_register();
+                }
+                for (dst, arg) in args.into_iter().enumerate() {
+                    let arg_dst = arg.compile(compiler)?;
+                    compiler.write(
+                        ByteCode::Move {
+                            dst: Location::Register(start + dst),
+                            src: arg_dst,
+                        },
+                        pos.clone(),
+                    );
+                }
+                compiler.write(
+                    ByteCode::SelfCall {
+                        head,
+                        field,
                         start,
                         amount,
                         dst: Some(Location::Register(dst)),

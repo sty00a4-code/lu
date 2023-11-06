@@ -100,6 +100,7 @@ pub fn std_env() -> HashMap<String, Value> {
     env.insert(
         "vec".to_string(),
         make_module!("vec":
+            "get" = Value::Function(FunctionKind::NativeFunction(_vec_get)),
             "len" = Value::Function(FunctionKind::NativeFunction(_vec_len)),
             "push" = Value::Function(FunctionKind::NativeFunction(_vec_push)),
             "insert" = Value::Function(FunctionKind::NativeFunction(_vec_insert)),
@@ -309,6 +310,21 @@ pub fn _obj_get(
     )
 }
 
+pub fn _vec_get(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Vector(vector) => if ! Value::Vector(Default::default()),
+        Value::Int(index) => if ! Value::Int(Default::default()),
+        default => if ! Value::default()
+        => {
+            let vector = vector.borrow();
+            Ok(Some(vector.get(index.unsigned_abs() as usize).cloned().unwrap_or(default)))
+        }
+    )
+}
 pub fn _vec_len(
     _: &mut Interpreter,
     args: Vec<Value>,

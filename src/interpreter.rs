@@ -276,6 +276,64 @@ impl Interpreter {
                     value => return Err(Located::new(RunTimeError::NotCallable(value), pos)),
                 }
             }
+            ByteCode::SelfCall {
+                head,
+                field,
+                start,
+                amount,
+                dst,
+            } => {
+                let head = self.source(head).unwrap_or_default();
+                let field = self.source(field).unwrap_or_default();
+                let func = match &head {
+                    Value::Object(object) => match field {
+                        Value::String(field) => object
+                            .borrow()
+                            .map
+                            .get(field.as_str())
+                            .cloned()
+                            .unwrap_or_default(),
+                        field => {
+                            return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
+                        }
+                    },
+                    Value::Vector(_) => match field {
+                        Value::String(field) => if let Some(Value::Object(vec_module)) = self.globals.get("vec") {
+                            vec_module.borrow().get(&field)
+                            .unwrap_or_default()
+                        } else {
+                            return Err(Located::new(RunTimeError::InvalidField(head, Value::String(field)), pos))
+                        }
+                        field => {
+                            return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
+                        }
+                    },
+                    _ => return Err(Located::new(RunTimeError::InvalidFieldHead(head), pos)),
+                };
+                let mut args = vec![head.clone()];
+                for addr in start..start + amount {
+                    args.push(
+                        self.source(Source::Register(addr))
+                            .expect("source not found")
+                            .clone(),
+                    );
+                }
+                match func {
+                    Value::Function(kind) => match kind {
+                        FunctionKind::Function(closure) => {
+                            self.enter_call(closure, args, dst);
+                        }
+                        FunctionKind::NativeFunction(func) => {
+                            let value = func(self, args, &pos)?;
+                            if let Some(dst) = dst {
+                                let register = self.location(dst).expect("location not found");
+                                *register = value.unwrap_or_default();
+                            }
+                        }
+                    },
+                    value => return Err(Located::new(RunTimeError::NotCallable(value), pos)),
+                }
+            }
             ByteCode::Return { src } => {
                 let return_value = self.source(src).unwrap_or_default();
                 self.return_call(return_value);
