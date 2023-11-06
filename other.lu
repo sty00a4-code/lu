@@ -2,12 +2,13 @@ let Person = {}
 function Person.new(name, age) {
     return setmeta({
         name = name,
-        age = age
+        age = age,
+        greet = function (self) {
+            return str("Hello! My name is ", self.name, " and I'm ", str(self.age), " years old.")
+        }
     }, {
         __name = "person"
     })
 }
-function Person.greet(self) {
-    return "Hello! My name is " + self.name + " and I'm " + str(self.age) + "years old."
-}
+
 return Person

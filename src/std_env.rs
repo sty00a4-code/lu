@@ -88,6 +88,11 @@ pub fn std_env() -> HashMap<String, Value> {
         "none".into(),
         Value::Function(FunctionKind::NativeFunction(_none)),
     );
+    
+    env.insert(
+        "str".into(),
+        Value::Function(FunctionKind::NativeFunction(_str)),
+    );
 
     env.insert(
         "obj".to_string(),
@@ -275,6 +280,14 @@ pub fn _none(
             Ok(Some(Value::Object(Rc::new(RefCell::new(None::<Value>.into())))))
         }
     )
+}
+
+pub fn _str(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    _: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    Ok(Some(Value::String(args.into_iter().map(|arg| arg.to_string()).collect::<Vec<String>>().join(""))))
 }
 
 pub fn _obj_keys(
