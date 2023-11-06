@@ -572,6 +572,17 @@ impl Interpreter {
                             return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
                         }
                     },
+                    Value::String(string) => match field {
+                        Value::Int(index) => string
+                            .chars()
+                            .collect::<Vec<char>>()
+                            .get(index.unsigned_abs() as usize)
+                            .map(|c| Value::String(String::from(*c)))
+                            .unwrap_or_default(),
+                        field => {
+                            return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
+                        }
+                    },
                     _ => return Err(Located::new(RunTimeError::InvalidFieldHead(head), pos)),
                 };
             }
