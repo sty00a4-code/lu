@@ -82,6 +82,29 @@ pub fn std_env() -> HashMap<String, Value> {
     );
 
     env.insert(
+        "obj".to_string(),
+        make_module!("obj":
+            "keys" = Value::Function(FunctionKind::NativeFunction(_obj_keys)),
+            "values" = Value::Function(FunctionKind::NativeFunction(_obj_values)),
+            "get" = Value::Function(FunctionKind::NativeFunction(_obj_get))
+        ),
+    );
+    env.insert(
+        "keys".to_string(),
+        Value::Function(FunctionKind::NativeFunction(_obj_keys)),
+    );
+    env.insert(
+        "vec".to_string(),
+        make_module!("vec":
+            "len" = Value::Function(FunctionKind::NativeFunction(_vec_len)),
+            "push" = Value::Function(FunctionKind::NativeFunction(_vec_push)),
+            "insert" = Value::Function(FunctionKind::NativeFunction(_vec_insert)),
+            "pop" = Value::Function(FunctionKind::NativeFunction(_vec_pop)),
+            "remove" = Value::Function(FunctionKind::NativeFunction(_vec_remove)),
+            "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos))
+        ),
+    );
+    env.insert(
         "math".to_string(),
         make_module!("math":
             "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
@@ -98,17 +121,6 @@ pub fn std_env() -> HashMap<String, Value> {
             "asinh" = Value::Function(FunctionKind::NativeFunction(_math_asinh)),
             "atanh" = Value::Function(FunctionKind::NativeFunction(_math_atanh)),
             "atan2" = Value::Function(FunctionKind::NativeFunction(_math_atan2))
-        ),
-    );
-    env.insert(
-        "vec".to_string(),
-        make_module!("vec":
-            "len" = Value::Function(FunctionKind::NativeFunction(_vec_len)),
-            "push" = Value::Function(FunctionKind::NativeFunction(_vec_push)),
-            "insert" = Value::Function(FunctionKind::NativeFunction(_vec_insert)),
-            "pop" = Value::Function(FunctionKind::NativeFunction(_vec_pop)),
-            "remove" = Value::Function(FunctionKind::NativeFunction(_vec_remove)),
-            "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos))
         ),
     );
 
@@ -228,6 +240,48 @@ pub fn _none(
     collect_args!(args pos:
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(None::<Value>.into())))))
+        }
+    )
+}
+
+pub fn _obj_keys(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Object(object) => if ! Value::Object(Default::default())
+        => {
+            let object = object.borrow();
+            Ok(Some(Value::Vector(Rc::new(RefCell::new(object.map.keys().map(|key| Value::String(key.clone())).collect())))))
+        }
+    )
+}
+pub fn _obj_values(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Object(object) => if ! Value::Object(Default::default())
+        => {
+            let object = object.borrow();
+            Ok(Some(Value::Vector(Rc::new(RefCell::new(object.map.values().cloned().collect())))))
+        }
+    )
+}
+pub fn _obj_get(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Object(object) => if ! Value::Object(Default::default()),
+        Value::String(key) => if ! Value::String(Default::default()),
+        default => if ! Value::default()
+        => {
+            let object = object.borrow();
+            Ok(Some(object.get(&key).unwrap_or(default)))
         }
     )
 }
