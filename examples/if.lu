@@ -1,0 +1,21 @@
+if true {
+    print "always true"
+}
+if false {
+    print "never gets printed"
+}
+
+let n = to_int(input "enter a number: ")
+if n {
+    if n == 1 {
+        print "one"
+    } else if n == 2 {
+        print "two"
+    } else if n == 3 {
+        print "three"
+    } else {
+        print "a lot"
+    }
+} else {
+    print "invalid number"
+}

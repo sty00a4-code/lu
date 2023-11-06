@@ -1,0 +1,14 @@
+let v = [1, 2, 3]
+print(v)
+v:push(4)
+print(v)
+v:insert(0, 5)
+print(v)
+let four = v:pop()
+print(v, four)
+let five = v:remove(0)
+print(v, five)
+v[0] = five
+print(v)
+print(v:get(0, 0))
+print(v:get(3, 0))

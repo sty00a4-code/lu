@@ -1,0 +1,8 @@
+function add_squared(a, b) {
+    return a ^ 2 + b ^ 2
+}
+print(add_squared(2, 3))
+let add_squared = function(a, b) {
+    return a ^ 2 + b ^ 2
+}
+print(add_squared(2, 3))

@@ -1,0 +1,23 @@
+let idx = 0
+while idx < 10 {
+    print(idx)
+    idx = idx + 1
+}
+
+let idx = 0
+while idx < 10 {
+    if idx == 5 { break }
+    print(idx)
+    idx = idx + 1
+}
+
+let v = to_vec("hello world!")
+let idx = 0
+while v[idx] {
+    if v[idx] == " " {
+        idx = idx + 1
+        continue
+    }
+    print(v[idx])
+    idx = idx + 1
+}

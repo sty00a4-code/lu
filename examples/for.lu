@@ -1,0 +1,19 @@
+for n in [1, 2, 3, 4, 5] {
+    print(n)
+}
+
+let o = {
+    a = 1,
+    b = 2,
+    c = 3,
+    d = 4,
+    e = 5,
+}
+for k in keys(o) {
+    print(k, o[k])
+}
+
+for c in "hello world!" {
+    if c == " " { break }
+    print(c)
+}

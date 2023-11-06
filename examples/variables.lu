@@ -1,0 +1,6 @@
+let a = 10
+while a > 0 {
+    print(a)
+    let b = math.ceil(a / 2)
+    a = a - b
+}

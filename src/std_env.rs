@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, fs, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fs, io::Write, rc::Rc};
 
 use oneparse::position::{Located, Positon};
 
@@ -61,6 +61,10 @@ pub fn std_env() -> HashMap<String, Value> {
         Value::Function(FunctionKind::NativeFunction(_print)),
     );
     env.insert(
+        "input".into(),
+        Value::Function(FunctionKind::NativeFunction(_input)),
+    );
+    env.insert(
         "error".into(),
         Value::Function(FunctionKind::NativeFunction(_error)),
     );
@@ -88,10 +92,26 @@ pub fn std_env() -> HashMap<String, Value> {
         "none".into(),
         Value::Function(FunctionKind::NativeFunction(_none)),
     );
-    
+
     env.insert(
-        "str".into(),
-        Value::Function(FunctionKind::NativeFunction(_str)),
+        "to_int".into(),
+        Value::Function(FunctionKind::NativeFunction(_to_int)),
+    );
+    env.insert(
+        "to_float".into(),
+        Value::Function(FunctionKind::NativeFunction(_to_float)),
+    );
+    env.insert(
+        "to_bool".into(),
+        Value::Function(FunctionKind::NativeFunction(_to_bool)),
+    );
+    env.insert(
+        "to_str".into(),
+        Value::Function(FunctionKind::NativeFunction(_to_str)),
+    );
+    env.insert(
+        "to_vec".into(),
+        Value::Function(FunctionKind::NativeFunction(_to_vec)),
     );
 
     env.insert(
@@ -158,6 +178,23 @@ pub fn _print(
             .join("\t")
     );
     Ok(None)
+}
+pub fn _input(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        prefix => if ! Value::String(Default::default())
+        => {
+            let mut input = String::new();
+            print!("{prefix}");
+            let _ = std::io::stdout().flush();
+            let _ = std::io::stdin().read_line(&mut input);
+            input = input.trim_end().to_string();
+            Ok(Some(Value::String(input)))
+        }
+    )
 }
 pub fn _setmeta(
     _: &mut Interpreter,
@@ -282,12 +319,92 @@ pub fn _none(
     )
 }
 
-pub fn _str(
+pub fn _to_int(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Null
+        => {
+            match value {
+                Value::Null => Ok(Some(Value::Int(0))),
+                Value::Int(v) => Ok(Some(Value::Int(v))),
+                Value::Float(v) => Ok(Some(Value::Int(v.abs() as i32))),
+                Value::Bool(v) => Ok(Some(Value::Int(if v { 1 } else { 0 }))),
+                Value::String(string) => Ok(Some(string.parse().ok().map(Value::Int).unwrap_or_default())),
+                _ => Ok(None)
+            }
+        }
+    )
+}
+pub fn _to_float(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        value => if ! Value::Null
+        => {
+            match value {
+                Value::Null => Ok(Some(Value::Float(0.))),
+                Value::Int(v) => Ok(Some(Value::Float(v as f32))),
+                Value::Float(v) => Ok(Some(Value::Float(v))),
+                Value::Bool(v) => Ok(Some(Value::Float(if v { 1. } else { 0. }))),
+                Value::String(string) => Ok(Some(string.parse().ok().map(Value::Float).unwrap_or_default())),
+                _ => Ok(None)
+            }
+        }
+    )
+}
+pub fn _to_bool(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+            value => if ! Value::Null
+            => {
+                Ok(Some(Value::Bool(bool::from(&value))))
+            }
+    )
+}
+pub fn _to_str(
     _: &mut Interpreter,
     args: Vec<Value>,
     _: &Positon,
 ) -> Result<Option<Value>, Located<RunTimeError>> {
-    Ok(Some(Value::String(args.into_iter().map(|arg| arg.to_string()).collect::<Vec<String>>().join(""))))
+    Ok(Some(Value::String(
+        args.into_iter()
+            .map(|arg| arg.to_string())
+            .collect::<Vec<String>>()
+            .join(""),
+    )))
+}
+pub fn _to_vec(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    if args.len() > 1 {
+        Ok(Some(Value::Vector(Rc::new(RefCell::new(args)))))
+    } else {
+        collect_args!(args pos:
+            value => if ! Value::Null
+            => {
+                match value {
+                    Value::Null => Ok(Some(Value::Vector(Rc::new(RefCell::new(vec![]))))),
+                    Value::String(string) => Ok(Some(Value::Vector(Rc::new(RefCell::new(string.chars().map(|c| Value::String(String::from(c))).collect()))))),
+                    Value::Vector(vector) => Ok(Some(Value::Vector(vector))),
+                    Value::Object(object) => {
+                        let object = object.borrow();
+                        Ok(Some(Value::Vector(Rc::new(RefCell::new(object.map.keys().map(|key| Value::String(key.clone())).collect())))))
+                    }
+                    _ => Ok(None)
+                }
+            }
+        )
+    }
 }
 
 pub fn _obj_keys(

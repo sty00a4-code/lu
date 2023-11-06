@@ -1062,11 +1062,14 @@ impl Compilable for Located<Statement> {
                 Ok(())
             }
             Statement::While { cond, body } => {
+                compiler.push_scope();
+                compiler.push_control_flow_stack();
                 let addr = compiler.addr();
                 let cond = cond.compile(compiler)?;
                 let exit_addr = compiler.write(ByteCode::None, pos.clone());
                 body.compile(compiler)?;
                 compiler.write(ByteCode::Jump { addr }, pos.clone());
+                compiler.pop_scope();
                 compiler.overwrite(
                     exit_addr,
                     ByteCode::JumpIf {
@@ -1074,8 +1077,26 @@ impl Compilable for Located<Statement> {
                         addr: compiler.addr(),
                         not: true,
                     },
-                    pos,
+                    pos.clone(),
                 );
+                let (breaks, continues) = compiler.pop_control_flow_stack();
+                let (breaks, continues) = (
+                    breaks.expect("no control flow stack"),
+                    continues.expect("no control flow stack"),
+                );
+                let exit_addr = compiler.addr();
+                for break_addr in breaks {
+                    compiler.overwrite(break_addr, ByteCode::Jump { addr: exit_addr }, pos.clone());
+                }
+                for continue_addr in continues {
+                    compiler.overwrite(
+                        continue_addr,
+                        ByteCode::Jump {
+                            addr,
+                        },
+                        pos.clone(),
+                    );
+                }
                 Ok(())
             }
             Statement::For {

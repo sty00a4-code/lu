@@ -1,0 +1,11 @@
+let o = {
+    a = 1,
+    b = 2
+}
+print(o)
+print(o.a)
+print(o["b"])
+o.c = 3
+for key in keys(o) {
+    print(key, "=", o[key])
+}
