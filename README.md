@@ -38,13 +38,10 @@ A light weight interpreted programming language wirtten in Rust
   - cosh(n)
   - sinh(n)
   - tanh(n)
-- [ ] module `fs`
+- [x] module `fs`
   - read(path): read file at path and return content
   - write(path, content): write the content to the file at path
   - append(path, content): append the content to the file at path
+- [x] module `os`
 - [ ] module `io`
-  - read(mode): read user input from stdin
-  - write(content): write the content to stdout
-- [ ] module `os`
-- [ ] module `time`
 - [ ] module `socket`

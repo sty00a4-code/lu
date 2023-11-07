@@ -1,12 +1,9 @@
-pub mod args;
 pub mod compiler;
 pub mod interpreter;
 pub mod lexer;
 pub mod parser;
 pub mod std_env;
 
-use args::LuArgs;
-use clap::Parser;
 use compiler::Closure;
 use oneparse::{parse, position::Located};
 use parser::CompileError;
@@ -29,8 +26,10 @@ pub fn compile_ast(ast: Located<Chunk>, path: &str) -> Result<Closure, Located<C
 }
 
 fn main() {
-    let args = LuArgs::parse();
-    let text = match fs::read_to_string(&args.path) {
+    let Some(path) = std::env::args().nth(1) else {
+        return
+    };
+    let text = match fs::read_to_string(&path) {
         Ok(text) => text,
         Err(err) => {
             eprintln!("ERROR: {err}");
@@ -39,12 +38,12 @@ fn main() {
     };
     // dbg!(&ast);
     let main_closure = match generate_ast(text) {
-        Ok(ast) => match compile_ast(ast, &args.path) {
+        Ok(ast) => match compile_ast(ast, &path) {
             Ok(closure) => closure,
             Err(Located { value: err, pos }) => {
                 eprintln!(
                     "ERROR {}:{}:{}: {err}",
-                    &args.path,
+                    &path,
                     pos.ln.start + 1,
                     pos.col.start + 1,
                 );
@@ -54,7 +53,7 @@ fn main() {
         Err(Located { value: err, pos }) => {
             eprintln!(
                 "ERROR {}:{}:{}: {err}",
-                &args.path,
+                &path,
                 pos.ln.start + 1,
                 pos.col.start + 1,
             );
@@ -74,7 +73,7 @@ fn main() {
         Err(Located { value: err, pos }) => {
             eprintln!(
                 "ERROR {}:{}:{}: {err}",
-                &args.path,
+                &path,
                 pos.ln.start + 1,
                 pos.col.start + 1
             );

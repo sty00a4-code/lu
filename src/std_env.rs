@@ -74,7 +74,7 @@ pub fn std_env() -> HashMap<String, Value> {
     );
     env.insert(
         "exit".into(),
-        Value::Function(FunctionKind::NativeFunction(_exit)),
+        Value::Function(FunctionKind::NativeFunction(_os_exit)),
     );
     env.insert(
         "ok".into(),
@@ -155,6 +155,27 @@ pub fn std_env() -> HashMap<String, Value> {
             "asinh" = Value::Function(FunctionKind::NativeFunction(_math_asinh)),
             "atanh" = Value::Function(FunctionKind::NativeFunction(_math_atanh)),
             "atan2" = Value::Function(FunctionKind::NativeFunction(_math_atan2))
+        ),
+    );
+    env.insert(
+        "os".to_string(),
+        make_module!("os":
+            "execute" = Value::Function(FunctionKind::NativeFunction(_os_execute)),
+            "args" = Value::Function(FunctionKind::NativeFunction(_os_args)),
+            "time" = Value::Function(FunctionKind::NativeFunction(_os_time)),
+            "var" = Value::Function(FunctionKind::NativeFunction(_os_var)),
+            "env" = Value::Function(FunctionKind::NativeFunction(_os_env)),
+            "exit" = Value::Function(FunctionKind::NativeFunction(_os_exit))
+        ),
+    );
+    env.insert(
+        "fs".to_string(),
+        make_module!("fs":
+            "read" = Value::Function(FunctionKind::NativeFunction(_fs_read)),
+            "write" = Value::Function(FunctionKind::NativeFunction(_fs_write)),
+            "rename" = Value::Function(FunctionKind::NativeFunction(_fs_rename)),
+            "remove" = Value::Function(FunctionKind::NativeFunction(_fs_remove)),
+            "remove_dir" = Value::Function(FunctionKind::NativeFunction(_fs_remove_dir))
         ),
     );
 
@@ -259,7 +280,7 @@ pub fn _assert(
         }
     )
 }
-pub fn _exit(
+pub fn _os_exit(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
@@ -840,6 +861,142 @@ pub fn _math_atan2(
                 value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
             };
             Ok(Some(Value::Float(value.atan2(value2))))
+        }
+    )
+}
+
+pub fn _os_execute(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(cmd) => if ! Value::String(Default::default())
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(
+                std::process::Command::new(cmd)
+                    .args(args.into_iter().skip(1)
+                        .map(|value| value.to_string())
+                        .collect::<Vec<String>>())
+                    .output()
+                    .map(|output| if output.status.success() {
+                        Value::String(String::from_utf8(output.stdout).ok().unwrap_or_default())
+                    } else {
+                        Value::String(String::from_utf8(output.stderr).ok().unwrap_or_default())
+                    })
+                    .map_err(|err| Value::String(err.to_string()))
+                    .into()
+            )))))
+        }
+    )
+}
+pub fn _os_args(
+    _: &mut Interpreter,
+    _: Vec<Value>,
+    _: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    Ok(Some(Value::Vector(Rc::new(RefCell::new(
+        std::env::args()
+            .skip(1)
+            .map(Value::String)
+            .collect::<Vec<Value>>(),
+    )))))
+}
+pub fn _os_time(
+    _: &mut Interpreter,
+    _: Vec<Value>,
+    _: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    Ok(Some(Value::Float(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_secs_f32(),
+    )))
+}
+pub fn _os_var(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(var) => if ! Value::String(Default::default())
+        => {
+            Ok(std::env::var(var).map(Value::String).ok())
+        }
+    )
+}
+pub fn _os_env(
+    _: &mut Interpreter,
+    _: Vec<Value>,
+    _: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    Ok(Some(Value::Object(Rc::new(RefCell::new(Object {
+        map: std::env::vars()
+            .map(|(key, value)| (key, Value::String(value)))
+            .collect(),
+        meta: None,
+    })))))
+}
+pub fn _fs_read(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(path) => if ! Value::String(Default::default())
+        => {
+            Ok(std::fs::read_to_string(path).ok().map(Value::String))
+        }
+    )
+}
+pub fn _fs_write(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(path) => if ! Value::String(Default::default()),
+        Value::String(content) => if ! Value::String(Default::default())
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::write(path, content).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
+        }
+    )
+}
+pub fn _fs_rename(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(old_path) => if ! Value::String(Default::default()),
+        Value::String(new_path) => if ! Value::String(Default::default())
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::rename(old_path, new_path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
+        }
+    )
+}
+pub fn _fs_remove(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(path) => if ! Value::String(Default::default())
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::remove_file(path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
+        }
+    )
+}
+pub fn _fs_remove_dir(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(path) => if ! Value::String(Default::default())
+        => {
+            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::remove_dir(path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
         }
     )
 }
