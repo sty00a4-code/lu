@@ -94,23 +94,23 @@ pub fn std_env() -> HashMap<String, Value> {
     );
 
     env.insert(
-        "to_int".into(),
+        "toint".into(),
         Value::Function(FunctionKind::NativeFunction(_to_int)),
     );
     env.insert(
-        "to_float".into(),
+        "tofloat".into(),
         Value::Function(FunctionKind::NativeFunction(_to_float)),
     );
     env.insert(
-        "to_bool".into(),
+        "tobool".into(),
         Value::Function(FunctionKind::NativeFunction(_to_bool)),
     );
     env.insert(
-        "to_str".into(),
+        "tostr".into(),
         Value::Function(FunctionKind::NativeFunction(_to_str)),
     );
     env.insert(
-        "to_vec".into(),
+        "tovec".into(),
         Value::Function(FunctionKind::NativeFunction(_to_vec)),
     );
 
@@ -162,8 +162,8 @@ pub fn std_env() -> HashMap<String, Value> {
         make_module!("os":
             "execute" = Value::Function(FunctionKind::NativeFunction(_os_execute)),
             "args" = Value::Function(FunctionKind::NativeFunction(_os_args)),
-            "time" = Value::Function(FunctionKind::NativeFunction(_os_time)),
             "var" = Value::Function(FunctionKind::NativeFunction(_os_var)),
+            "setvar" = Value::Function(FunctionKind::NativeFunction(_os_set_var)),
             "env" = Value::Function(FunctionKind::NativeFunction(_os_env)),
             "exit" = Value::Function(FunctionKind::NativeFunction(_os_exit))
         ),
@@ -175,7 +175,7 @@ pub fn std_env() -> HashMap<String, Value> {
             "write" = Value::Function(FunctionKind::NativeFunction(_fs_write)),
             "rename" = Value::Function(FunctionKind::NativeFunction(_fs_rename)),
             "remove" = Value::Function(FunctionKind::NativeFunction(_fs_remove)),
-            "remove_dir" = Value::Function(FunctionKind::NativeFunction(_fs_remove_dir))
+            "removedir" = Value::Function(FunctionKind::NativeFunction(_fs_remove_dir))
         ),
     );
 
@@ -902,18 +902,6 @@ pub fn _os_args(
             .collect::<Vec<Value>>(),
     )))))
 }
-pub fn _os_time(
-    _: &mut Interpreter,
-    _: Vec<Value>,
-    _: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    Ok(Some(Value::Float(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("time went backwards")
-            .as_secs_f32(),
-    )))
-}
 pub fn _os_var(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -923,6 +911,20 @@ pub fn _os_var(
         Value::String(var) => if ! Value::String(Default::default())
         => {
             Ok(std::env::var(var).map(Value::String).ok())
+        }
+    )
+}
+pub fn _os_set_var(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        var => if ! Value::String(Default::default()),
+        value => if ! Value::String(Default::default())
+        => {
+            std::env::set_var(var.to_string(), value.to_string());
+            Ok(None)
         }
     )
 }
