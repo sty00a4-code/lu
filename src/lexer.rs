@@ -208,13 +208,28 @@ impl Lexable for Token {
                     Ok(Some(Located::new(Token::GT, pos)))
                 }
             }
-            '"' => {
+            '"' | '\'' => {
+                let end_c = c;
                 let mut string = String::new();
                 while let Some(c) = lexer.get() {
-                    if c == '"' {
+                    if c == end_c {
                         break;
                     }
-                    string.push(c);
+                    string.push(if c == '\\' {
+                        lexer.advance();
+                        let Some(esc_c) = lexer.get() else {
+                            return Err(Located::new(LexError::UnclosedString, pos))
+                        };
+                        match esc_c {
+                            'n' => '\n',
+                            't' => '\t',
+                            'r' => '\r',
+                            '0' => '\0',
+                            esc_c => esc_c
+                        }
+                    } else {
+                        c
+                    });
                     lexer.advance();
                 }
                 pos.extend(&lexer.pos());

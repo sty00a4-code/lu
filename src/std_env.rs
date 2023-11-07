@@ -1035,7 +1035,7 @@ pub fn _require(
 impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Object {
     fn from(val: Result<T, E>) -> Self {
         let mut meta = HashMap::new();
-        meta.insert("__name".to_string(), Value::String("option".to_string()));
+        meta.insert("__name".to_string(), Value::String("result".to_string()));
         match val {
             Ok(value) => {
                 let mut map = HashMap::new();
