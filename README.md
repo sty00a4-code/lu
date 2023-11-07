@@ -2,6 +2,14 @@
 
 A light weight interpreted programming language wirtten in Rust
 
+# Guide
+
+## Install
+
+```shell
+
+```
+
 # To-Do
 
 ## Features
@@ -13,6 +21,7 @@ A light weight interpreted programming language wirtten in Rust
   - [x] if
   - [x] while
 - [x] function creation
+- [ ] error stack
 - [ ] optimizations
 ## Environment
 - [x] function `setmeta(object, meta)`: set the meta information of an object
@@ -45,3 +54,7 @@ A light weight interpreted programming language wirtten in Rust
 - [x] module `os`
 - [ ] module `io`
 - [ ] module `socket`
+## Use
+- [ ] Install Guide
+- [ ] Playground
+- [ ] Tutorial
