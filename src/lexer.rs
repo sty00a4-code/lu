@@ -233,7 +233,7 @@ impl Lexable for Token {
                     lexer.advance();
                 }
                 pos.extend(&lexer.pos());
-                if lexer.get() != Some('"') {
+                if lexer.get() != Some(end_c) {
                     return Err(Located::new(LexError::UnclosedString, pos));
                 }
                 lexer.advance();

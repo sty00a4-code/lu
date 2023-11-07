@@ -1,0 +1,16 @@
+function fs.open(path) {
+    return setmeta({
+        path = path,
+        read = function (self) {
+            return fs.read(self.path)
+        },
+        write = function (self, content) {
+            return fs.write(self.path, content)
+        },
+        append = function (self, content) {
+            return fs.write(self.path, self:read() + content)
+        },
+    }, {
+        __name = "file"
+    })
+}
