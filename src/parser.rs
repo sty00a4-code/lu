@@ -1134,6 +1134,8 @@ impl Compilable for Located<Statement> {
                     },
                     pos.clone(),
                 );
+                let check_reg = compiler.new_register();
+                compiler.write(ByteCode::Binary { op: BinaryOperator::NE, dst: Location::Register(check_reg), left: Source::Register(idx_reg), right: Source::Null }, pos.clone());
                 let check_addr = compiler.write(ByteCode::None, pos.clone());
                 compiler.write(
                     ByteCode::Move {
@@ -1164,7 +1166,7 @@ impl Compilable for Located<Statement> {
                 compiler.overwrite(
                     check_addr,
                     ByteCode::JumpIf {
-                        cond: Source::Register(idx_reg),
+                        cond: Source::Register(check_reg),
                         addr: exit_addr,
                         not: true,
                     },
