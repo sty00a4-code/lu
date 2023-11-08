@@ -863,7 +863,7 @@ impl Parsable<Token> for Ident {
 pub enum CompileError {
     NoLoopToBreak,
     NoLoopToContinue,
-    Parsing(String)
+    Parsing(String),
 }
 impl Compilable for Located<Chunk> {
     type Error = CompileError;
@@ -1089,13 +1089,7 @@ impl Compilable for Located<Statement> {
                     compiler.overwrite(break_addr, ByteCode::Jump { addr: exit_addr }, pos.clone());
                 }
                 for continue_addr in continues {
-                    compiler.overwrite(
-                        continue_addr,
-                        ByteCode::Jump {
-                            addr,
-                        },
-                        pos.clone(),
-                    );
+                    compiler.overwrite(continue_addr, ByteCode::Jump { addr }, pos.clone());
                 }
                 Ok(())
             }
@@ -1135,7 +1129,15 @@ impl Compilable for Located<Statement> {
                     pos.clone(),
                 );
                 let check_reg = compiler.new_register();
-                compiler.write(ByteCode::Binary { op: BinaryOperator::NE, dst: Location::Register(check_reg), left: Source::Register(idx_reg), right: Source::Null }, pos.clone());
+                compiler.write(
+                    ByteCode::Binary {
+                        op: BinaryOperator::NE,
+                        dst: Location::Register(check_reg),
+                        left: Source::Register(idx_reg),
+                        right: Source::Null,
+                    },
+                    pos.clone(),
+                );
                 let check_addr = compiler.write(ByteCode::None, pos.clone());
                 compiler.write(
                     ByteCode::Move {

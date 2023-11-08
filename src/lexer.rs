@@ -218,14 +218,14 @@ impl Lexable for Token {
                     string.push(if c == '\\' {
                         lexer.advance();
                         let Some(esc_c) = lexer.get() else {
-                            return Err(Located::new(LexError::UnclosedString, pos))
+                            return Err(Located::new(LexError::UnclosedString, pos));
                         };
                         match esc_c {
                             'n' => '\n',
                             't' => '\t',
                             'r' => '\r',
                             '0' => '\0',
-                            esc_c => esc_c
+                            esc_c => esc_c,
                         }
                     } else {
                         c

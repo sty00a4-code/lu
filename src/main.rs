@@ -5,6 +5,7 @@ pub mod parser;
 pub mod std_env;
 
 use compiler::Closure;
+use interpreter::Traced;
 use oneparse::{parse, position::Located};
 use parser::CompileError;
 use std::{cell::RefCell, fs, process::exit, rc::Rc};
@@ -27,7 +28,7 @@ pub fn compile_ast(ast: Located<Chunk>, path: &str) -> Result<Closure, Located<C
 
 fn main() {
     let Some(path) = std::env::args().nth(1) else {
-        return
+        return;
     };
     let text = match fs::read_to_string(&path) {
         Ok(text) => text,
@@ -49,7 +50,7 @@ fn main() {
                 );
                 exit(1);
             }
-        }
+        },
         Err(Located { value: err, pos }) => {
             eprintln!(
                 "ERROR {}:{}:{}: {err}",
@@ -70,13 +71,22 @@ fn main() {
                 println!("{value}");
             }
         }
-        Err(Located { value: err, pos }) => {
+        Err(Traced {
+            trace,
+            err: Located { value: err, pos },
+        }) => {
             eprintln!(
                 "ERROR {}:{}:{}: {err}",
                 &path,
                 pos.ln.start + 1,
                 pos.col.start + 1
             );
+            if !trace.is_empty() {
+                eprintln!("trace back (last call first)");
+                for (path, pos) in trace {
+                    eprintln!("\t{path}:{}:{}", pos.ln.start + 1, pos.col.start + 1);
+                }
+            }
             exit(1);
         }
     }

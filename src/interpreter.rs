@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     compiler::{ByteCode, Closure, Location, Source},
-    parser::{BinaryOperator, UnaryOperator, CompileError},
+    parser::{BinaryOperator, CompileError, UnaryOperator},
 };
 
 #[derive(Clone, Default)]
@@ -74,8 +74,14 @@ pub enum RunTimeError {
     InvalidField(Value, Value),
     Custom(String),
     Compiling(CompileError),
-    FileNotFound(String)
+    FileNotFound(String),
 }
+#[derive(Debug, Clone)]
+pub struct Traced<E> {
+    pub trace: Vec<(String, Positon)>,
+    pub err: E,
+}
+
 impl Interpreter {
     pub fn with_globals(mut self, globals: HashMap<String, Value>) -> Self {
         self.globals = globals;
@@ -191,13 +197,29 @@ impl Interpreter {
         }
     }
 
+    pub fn create_trace(&self, err: Located<RunTimeError>) -> Traced<Located<RunTimeError>> {
+        let mut trace = vec![];
+        for call_frame in self.call_stack.iter().rev() {
+            trace.push((
+                call_frame.path.clone(),
+                call_frame
+                    .closure
+                    .borrow()
+                    .code
+                    .get(call_frame.ip)
+                    .map(|loc| loc.pos.clone())
+                    .unwrap_or_default(),
+            ));
+        }
+        Traced { trace, err }
+    }
     pub fn run(
         &mut self,
         closure: Rc<RefCell<Closure>>,
-    ) -> Result<Option<Value>, Located<RunTimeError>> {
+    ) -> Result<Option<Value>, Traced<Located<RunTimeError>>> {
         self.enter_call(closure, vec![], Some(Location::Global(0)));
         loop {
-            if self.step()? {
+            if self.step().map_err(|err| self.create_trace(err))? {
                 break;
             }
         }
@@ -302,11 +324,15 @@ impl Interpreter {
                         }
                     },
                     Value::Vector(_) => match field {
-                        Value::String(field) => if let Some(Value::Object(vec_module)) = self.globals.get("vec") {
-                            vec_module.borrow().get(&field)
-                            .unwrap_or_default()
-                        } else {
-                            return Err(Located::new(RunTimeError::InvalidField(head, Value::String(field)), pos))
+                        Value::String(field) => {
+                            if let Some(Value::Object(vec_module)) = self.globals.get("vec") {
+                                vec_module.borrow().get(&field).unwrap_or_default()
+                            } else {
+                                return Err(Located::new(
+                                    RunTimeError::InvalidField(head, Value::String(field)),
+                                    pos,
+                                ));
+                            }
                         }
                         field => {
                             return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
@@ -501,9 +527,7 @@ impl Interpreter {
                         (Value::Float(left), Value::Int(right)) => {
                             Value::Float(left + right as f32)
                         }
-                        (Value::String(left), Value::String(right)) => {
-                            Value::String(left + &right)
-                        }
+                        (Value::String(left), Value::String(right)) => Value::String(left + &right),
                         (left, right) => {
                             return Err(Located::new(
                                 RunTimeError::Binary(op, left, right),
@@ -881,7 +905,12 @@ impl Display for RunTimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RunTimeError::Binary(op, left, right) => {
-                write!(f, "cannot perform '{op}' on {} with {}", left.typ(), right.typ())
+                write!(
+                    f,
+                    "cannot perform '{op}' on {} with {}",
+                    left.typ(),
+                    right.typ()
+                )
             }
             RunTimeError::Unary(op, right) => write!(f, "cannot perform '{op}' on {}", right.typ()),
             RunTimeError::NotCallable(value) => write!(f, "cannot call {}", value.typ()),

@@ -1024,7 +1024,7 @@ pub fn _require(
             let mut globals = interpreter.globals.clone();
             let __module = globals.remove("__module").unwrap_or_default();
             let mut sub_interpreter = Interpreter::default().with_globals(globals);
-            let value = sub_interpreter.run(Rc::new(RefCell::new(closure)))?;
+            let value = sub_interpreter.run(Rc::new(RefCell::new(closure))).map_err(|traced| traced.err)?;
             interpreter.globals = sub_interpreter.globals;
             interpreter.globals.insert("__module".to_string(), __module);
             Ok(value)
