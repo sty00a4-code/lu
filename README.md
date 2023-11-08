@@ -21,7 +21,7 @@ A light weight interpreted programming language wirtten in Rust
   - [x] if
   - [x] while
 - [x] function creation
-- [ ] error stack
+- [x] error stack
 - [ ] optimizations
 ## Environment
 - [x] function `setmeta(object, meta)`: set the meta information of an object
