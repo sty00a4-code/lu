@@ -6,7 +6,7 @@ A light weight interpreted programming language wirtten in Rust
 
 ## Tutorials
 
-1. [Introduction](docs/english/introduction.md)
+1. [Introduction](docs/introduction.md)
 
 # To-Do
 
