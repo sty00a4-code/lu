@@ -135,7 +135,8 @@ pub fn std_env() -> HashMap<String, Value> {
             "insert" = Value::Function(FunctionKind::NativeFunction(_vec_insert)),
             "pop" = Value::Function(FunctionKind::NativeFunction(_vec_pop)),
             "remove" = Value::Function(FunctionKind::NativeFunction(_vec_remove)),
-            "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos))
+            "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos)),
+            "range" = Value::Function(FunctionKind::NativeFunction(_vec_range))
         ),
     );
     env.insert(
@@ -569,6 +570,38 @@ pub fn _vec_pos(
         => {
             let vector = vector.borrow();
             Ok(vector.iter().position(|e| e == &value).map(|index| Value::Int(index as i32)))
+        }
+    )
+}
+pub fn _vec_range(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Int(start) => if ! Value::Vector(Default::default()),
+        Value::Int(end) => if ! Value::Vector(Default::default()),
+        step => if ! Value::default()
+        => {
+            let step = if let Value::Int(step) = step {
+                step
+            } else {
+                1
+            };
+            let mut vector = vec![];
+            let mut i = start;
+            if step < 0 {
+                while i > end {
+                    vector.push(Value::Int(i));
+                    i += step;
+                }
+            } else {
+                while i < end {
+                    vector.push(Value::Int(i));
+                    i += step;
+                }
+            }
+            Ok(Some(Value::Vector(Rc::new(RefCell::new(vector)))))
         }
     )
 }

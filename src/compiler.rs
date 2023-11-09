@@ -358,7 +358,7 @@ impl Display for Closure {
                         amount,
                         dst,
                     } => format!(
-                        "call {} ( reg@{start} + {amount}{} )",
+                        "call {} ( reg@{start} + {amount} ){}",
                         func.display_code(self),
                         if let Some(dst) = dst {
                             format!(" -> {}", dst.display_code(self))
@@ -373,7 +373,7 @@ impl Display for Closure {
                         amount,
                         dst,
                     } => format!(
-                        "call {} : {} ( reg@{start} + {amount}{} )",
+                        "call {} : {} ( reg@{start} + {amount}){}",
                         head.display_code(self),
                         field.display_code(self),
                         if let Some(dst) = dst {

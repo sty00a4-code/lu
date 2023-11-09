@@ -41,6 +41,13 @@ pub enum Token {
     LE,
     GE,
 
+    PlusEqual,
+    MinusEqual,
+    StarEqual,
+    SlashEqual,
+    PercentEqual,
+    ExponentEqual,
+
     Let,
     Return,
     Do,
@@ -126,6 +133,12 @@ impl Display for Token {
             Token::GT => write!(f, ">"),
             Token::LE => write!(f, "<="),
             Token::GE => write!(f, ">="),
+            Token::PlusEqual => write!(f, "+="),
+            Token::MinusEqual => write!(f, "-="),
+            Token::StarEqual => write!(f, "*="),
+            Token::SlashEqual => write!(f, "/="),
+            Token::PercentEqual => write!(f, "%="),
+            Token::ExponentEqual => write!(f, "^="),
             Token::Let => write!(f, "let"),
             Token::Return => write!(f, "return"),
             Token::Do => write!(f, "do"),
@@ -173,12 +186,60 @@ impl Lexable for Token {
             '.' => Ok(Some(Located::new(Token::Dot, pos))),
             ':' => Ok(Some(Located::new(Token::Colon, pos))),
             ',' => Ok(Some(Located::new(Token::Comma, pos))),
-            '+' => Ok(Some(Located::new(Token::Plus, pos))),
-            '-' => Ok(Some(Located::new(Token::Minus, pos))),
-            '*' => Ok(Some(Located::new(Token::Star, pos))),
-            '/' => Ok(Some(Located::new(Token::Slash, pos))),
-            '%' => Ok(Some(Located::new(Token::Percent, pos))),
-            '^' => Ok(Some(Located::new(Token::Exponent, pos))),
+            '+' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::PlusEqual, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Plus, pos)))
+                }
+            }
+            '-' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::MinusEqual, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Minus, pos)))
+                }
+            }
+            '*' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::StarEqual, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Star, pos)))
+                }
+            }
+            '/' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::SlashEqual, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Slash, pos)))
+                }
+            }
+            '%' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::PercentEqual, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Percent, pos)))
+                }
+            }
+            '^' => {
+                if lexer.get() == Some('=') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    Ok(Some(Located::new(Token::ExponentEqual, pos)))
+                } else {
+                    Ok(Some(Located::new(Token::Exponent, pos)))
+                }
+            }
             '!' => {
                 if lexer.get() == Some('=') {
                     pos.extend(&lexer.pos());
