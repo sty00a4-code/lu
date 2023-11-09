@@ -137,8 +137,13 @@ pub fn std_env() -> HashMap<String, Value> {
             "remove" = Value::Function(FunctionKind::NativeFunction(_vec_remove)),
             "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos)),
             "range" = Value::Function(FunctionKind::NativeFunction(_vec_range)),
-            "join" = Value::Function(FunctionKind::NativeFunction(_vec_join))
+            "join" = Value::Function(FunctionKind::NativeFunction(_vec_join)),
+            "sort" = Value::Function(FunctionKind::NativeFunction(_vec_sort))
         ),
+    );
+    env.insert(
+        "range".to_string(),
+        Value::Function(FunctionKind::NativeFunction(_vec_range))
     );
     env.insert(
         "str".to_string(),
@@ -730,6 +735,20 @@ pub fn _vec_join(
         => {
             let vector = vector.borrow();
             Ok(Some(Value::String(vector.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(sep.as_str()))))
+        }
+    )
+}
+pub fn _vec_sort(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Vector(vector) => if ! Value::Vector(Default::default())
+        => {
+            let mut vector = vector.borrow().clone();
+            vector.sort();
+            Ok(Some(Value::Vector(Rc::new(RefCell::new(vector)))))
         }
     )
 }

@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
     error::Error,
     fmt::{Debug, Display},
-    rc::Rc,
+    rc::Rc, cmp::Ordering,
 };
 
 use crate::{
@@ -729,6 +729,9 @@ impl PartialEq for Value {
         }
     }
 }
+impl Eq for Value {
+
+}
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -773,6 +776,20 @@ impl Display for FunctionKind {
                 write!(f, "{:?}", closure.as_ptr() as *const Closure)
             }
             FunctionKind::NativeFunction(func) => write!(f, "{:?}", func as *const NativeFunction),
+        }
+    }
+}
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Value::Int(left), Value::Int(right)) => left.cmp(right),
+            (Value::Float(left), Value::Float(right)) => left.total_cmp(right),
+            (Value::Int(left), Value::Float(right)) => (*left as f32).total_cmp(right),
+            (Value::Float(left), Value::Int(right)) => left.total_cmp(&(*right as f32)),
+            _ => Ordering::Equal
         }
     }
 }
