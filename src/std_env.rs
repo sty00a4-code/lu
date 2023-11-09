@@ -140,6 +140,17 @@ pub fn std_env() -> HashMap<String, Value> {
         ),
     );
     env.insert(
+        "str".to_string(),
+        make_module!("str":
+            "get" = Value::Function(FunctionKind::NativeFunction(_str_get)),
+            "len" = Value::Function(FunctionKind::NativeFunction(_str_len)),
+            "char" = Value::Function(FunctionKind::NativeFunction(_str_char)),
+            "byte" = Value::Function(FunctionKind::NativeFunction(_str_byte)),
+            "upper" = Value::Function(FunctionKind::NativeFunction(_str_upper)),
+            "lower" = Value::Function(FunctionKind::NativeFunction(_str_lower))
+        ),
+    );
+    env.insert(
         "math".to_string(),
         make_module!("math":
             "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
@@ -467,6 +478,93 @@ pub fn _obj_get(
         => {
             let object = object.borrow();
             Ok(Some(object.get(&key).unwrap_or(default)))
+        }
+    )
+}
+
+pub fn _str_get(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(string) => if ! Value::String(Default::default()),
+        Value::Int(index) => if ! Value::Int(Default::default()),
+        Value::String(default) => if ! Value::String(Default::default())
+        => {
+            let index = index.unsigned_abs() as usize;
+            Ok(Some(Value::String(
+                string
+                    .get(index..=index)
+                    .and_then(|s| s.chars().next().map(|c| c.to_string()))
+                    .unwrap_or(default)
+            )))
+        }
+    )
+}
+pub fn _str_len(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(string) => if ! Value::String(Default::default())
+        => {
+            Ok(Some(Value::Int(string.len() as i32)))
+        }
+    )
+}
+pub fn _str_char(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Int(byte) => if ! Value::Int(Default::default())
+        => {
+            Ok(Some(Value::String((byte as u8 as char).to_string())))
+        }
+    )
+}
+pub fn _str_byte(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c as u8 as i32).map(Value::Int))
+        }
+    )
+}
+pub fn _str_upper(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(string) => if ! Value::Int(Default::default())
+        => {
+            Ok(Some(Value::String(string.to_uppercase())))
+        }
+    )
+}
+pub fn _str_lower(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(string) => if ! Value::Int(Default::default())
+        => {
+            Ok(Some(Value::String(string.to_lowercase())))
         }
     )
 }

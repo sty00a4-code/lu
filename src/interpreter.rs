@@ -338,6 +338,21 @@ impl Interpreter {
                             return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
                         }
                     },
+                    Value::String(_) => match field {
+                        Value::String(field) => {
+                            if let Some(Value::Object(str_module)) = self.globals.get("str") {
+                                str_module.borrow().get(&field).unwrap_or_default()
+                            } else {
+                                return Err(Located::new(
+                                    RunTimeError::InvalidField(head, Value::String(field)),
+                                    pos,
+                                ));
+                            }
+                        }
+                        field => {
+                            return Err(Located::new(RunTimeError::InvalidField(head, field), pos))
+                        }
+                    },
                     _ => return Err(Located::new(RunTimeError::InvalidFieldHead(head), pos)),
                 };
                 let mut args = vec![head.clone()];

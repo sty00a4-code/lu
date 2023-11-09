@@ -25,11 +25,18 @@ A light weight interpreted programming language wirtten in Rust
 - [x] function `setmeta(object, meta)`: set the meta information of an object
 - [x] function `error(string)`: raise an error
 - [x] module `vec`
-  - len(): 
+  - len(): length of the vector
   - push(value): push on front
   - pop(idx): pop index of
   - insert(idx, value): insert into the vector at idx
   - pos(func): get postion of value
+- [x] module `str`
+  - len(): length of string
+  - sub(start, end): create a substring from the defined range
+  - char(byte): create a string of the character by the byte
+  - byte(idx): get the byte if the string at idx's position
+  - upper(s): puts the strings characters in upper case
+  - lower(s): puts the strings characters in lower case
 - [x] module `math`
   - floor(n)
   - ceil(n)
