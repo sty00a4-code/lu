@@ -136,7 +136,8 @@ pub fn std_env() -> HashMap<String, Value> {
             "pop" = Value::Function(FunctionKind::NativeFunction(_vec_pop)),
             "remove" = Value::Function(FunctionKind::NativeFunction(_vec_remove)),
             "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos)),
-            "range" = Value::Function(FunctionKind::NativeFunction(_vec_range))
+            "range" = Value::Function(FunctionKind::NativeFunction(_vec_range)),
+            "join" = Value::Function(FunctionKind::NativeFunction(_vec_join))
         ),
     );
     env.insert(
@@ -147,7 +148,8 @@ pub fn std_env() -> HashMap<String, Value> {
             "char" = Value::Function(FunctionKind::NativeFunction(_str_char)),
             "byte" = Value::Function(FunctionKind::NativeFunction(_str_byte)),
             "upper" = Value::Function(FunctionKind::NativeFunction(_str_upper)),
-            "lower" = Value::Function(FunctionKind::NativeFunction(_str_lower))
+            "lower" = Value::Function(FunctionKind::NativeFunction(_str_lower)),
+            "split" = Value::Function(FunctionKind::NativeFunction(_str_split))
         ),
     );
     env.insert(
@@ -568,6 +570,20 @@ pub fn _str_lower(
         }
     )
 }
+pub fn _str_split(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::String(string) => if ! Value::String(Default::default()),
+        Value::String(sep) => if ! Value::String(Default::default())
+        => {
+            let vector = string.split(sep.as_str()).map(|s| Value::String(s.to_string())).collect();
+            Ok(Some(Value::Vector(Rc::new(RefCell::new(vector)))))
+        }
+    )
+}
 
 pub fn _vec_get(
     _: &mut Interpreter,
@@ -700,6 +716,20 @@ pub fn _vec_range(
                 }
             }
             Ok(Some(Value::Vector(Rc::new(RefCell::new(vector)))))
+        }
+    )
+}
+pub fn _vec_join(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+) -> Result<Option<Value>, Located<RunTimeError>> {
+    collect_args!(args pos:
+        Value::Vector(vector) => if ! Value::Vector(Default::default()),
+        Value::String(sep) => if ! Value::String(Default::default())
+        => {
+            let vector = vector.borrow();
+            Ok(Some(Value::String(vector.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(sep.as_str()))))
         }
     )
 }
