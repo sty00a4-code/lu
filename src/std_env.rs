@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, fs, io::Write, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fs, io::Write, rc::Rc, path::PathBuf, str::FromStr};
 
 use oneparse::position::{Located, Positon};
 
@@ -94,6 +94,10 @@ pub fn std_env() -> HashMap<String, Value> {
     );
 
     env.insert(
+        "type".into(),
+        Value::Function(FunctionKind::NativeFunction(_type)),
+    );
+    env.insert(
         "toint".into(),
         Value::Function(FunctionKind::NativeFunction(_to_int)),
     );
@@ -138,7 +142,8 @@ pub fn std_env() -> HashMap<String, Value> {
             "pos" = Value::Function(FunctionKind::NativeFunction(_vec_pos)),
             "range" = Value::Function(FunctionKind::NativeFunction(_vec_range)),
             "join" = Value::Function(FunctionKind::NativeFunction(_vec_join)),
-            "sort" = Value::Function(FunctionKind::NativeFunction(_vec_sort))
+            "sort" = Value::Function(FunctionKind::NativeFunction(_vec_sort)),
+            "contains" = Value::Function(FunctionKind::NativeFunction(_vec_contains))
         ),
     );
     env.insert(
@@ -154,7 +159,15 @@ pub fn std_env() -> HashMap<String, Value> {
             "byte" = Value::Function(FunctionKind::NativeFunction(_str_byte)),
             "upper" = Value::Function(FunctionKind::NativeFunction(_str_upper)),
             "lower" = Value::Function(FunctionKind::NativeFunction(_str_lower)),
-            "split" = Value::Function(FunctionKind::NativeFunction(_str_split))
+            "split" = Value::Function(FunctionKind::NativeFunction(_str_split)),
+            "is_digit" = Value::Function(FunctionKind::NativeFunction(_str_is_digit)),
+            "is_radix" = Value::Function(FunctionKind::NativeFunction(_str_is_radix)),
+            "is_alphabetic" = Value::Function(FunctionKind::NativeFunction(_str_is_alphabetic)),
+            "is_alphanumeric" = Value::Function(FunctionKind::NativeFunction(_str_is_alphanumeric)),
+            "is_whitespace" = Value::Function(FunctionKind::NativeFunction(_str_is_whitespace)),
+            "is_upper" = Value::Function(FunctionKind::NativeFunction(_str_is_upper)),
+            "is_lower" = Value::Function(FunctionKind::NativeFunction(_str_is_lower)),
+            "is_punctuation" = Value::Function(FunctionKind::NativeFunction(_str_is_punctuation))
         ),
     );
     env.insert(
@@ -370,6 +383,19 @@ pub fn _none(
     )
 }
 
+pub fn _type(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        value => if ! Value::Null
+        => {
+            Ok(Some(Value::String(value.typ().to_string())))
+        }
+    )
+}
 pub fn _to_int(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -615,6 +641,159 @@ pub fn _str_split(
         }
     )
 }
+pub fn _str_is_digit(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_ascii_digit()).map(Value::Bool))
+        }
+    )
+}
+pub fn _str_is_radix(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        Value::Int(radix) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_digit(radix.unsigned_abs())).map(Value::Bool))
+        }
+    )
+}
+pub fn _str_is_alphabetic(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_ascii_alphabetic()).map(Value::Bool))
+        }
+    )
+}
+pub fn _str_is_alphanumeric(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_ascii_alphanumeric()).map(Value::Bool))
+        }
+    )
+}
+pub fn _str_is_whitespace(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_ascii_whitespace()).map(Value::Bool))
+        }
+    )
+}
+pub fn _str_is_lower(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_ascii_lowercase()).map(Value::Bool))
+        }
+    )
+}
+pub fn _str_is_upper(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_ascii_uppercase()).map(Value::Bool))
+        }
+    )
+}
+pub fn _str_is_punctuation(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(string) => if ! Value::Int(Default::default()),
+        index => if ! Value::Int(Default::default())
+        => {
+            let index = if let Value::Int(index) = index {
+                index as usize
+            } else {
+                0
+            };
+            Ok(string.chars().nth(index).map(|c| c.is_ascii_punctuation()).map(Value::Bool))
+        }
+    )
+}
 
 pub fn _vec_get(
     _: &mut Interpreter,
@@ -785,6 +964,21 @@ pub fn _vec_sort(
             let mut vector = vector.borrow().clone();
             vector.sort();
             Ok(Some(Value::Vector(Rc::new(RefCell::new(vector)))))
+        }
+    )
+}
+pub fn _vec_contains(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::Vector(vector) => if ! Value::Vector(Default::default()),
+        value => if ! Value::default()
+        => {
+            let vector = vector.borrow().clone();
+            Ok(Some(Value::Bool(vector.contains(&value))))
         }
     )
 }
@@ -1255,30 +1449,23 @@ pub fn _require(
     collect_args!(args pos path:
         Value::String(file_path) => if ! Value::String(Default::default())
         => {
-            let current_dir = {
-                let dir = match std::env::current_dir() {
-                    Ok(path_buf) => String::from(path_buf.to_str().unwrap()),
-                    Err(err) => {
-                        return Err(PathLocated::new(Located::new(RunTimeError::FileNotFound(file_path.clone(), err.to_string()), pos.clone()), path.to_string()))
-                    }
-                };
-                let current_file = std::path::PathBuf::try_from(dir.clone() + "/" + &interpreter.current_call_frame().unwrap().path).unwrap();
-                current_file.parent().unwrap().to_str().unwrap().to_string()
-            };
-            let full_path = current_dir + "/" + &file_path;
-            let text = match fs::read_to_string(full_path) {
+            let current_file = interpreter.current_path().unwrap();
+            let current_file_path = PathBuf::from_str(current_file).unwrap();
+            let full_path = current_file_path.parent().unwrap().to_str().unwrap().to_string() + "/" + &file_path;
+
+            let text = match fs::read_to_string(&full_path) {
                 Ok(text) => text,
-                Err(err) => return Err(PathLocated::new(Located::new(RunTimeError::FileNotFound(file_path.clone(), err.to_string()), pos.clone()), path.to_string()))
+                Err(err) => return Err(PathLocated::new(Located::new(RunTimeError::FileNotFound(full_path.clone(), err.to_string()), pos.clone()), path.to_string()))
             };
             let closure = compile_ast(
                 generate_ast(text)
                     .map_err(|err| err.map(CompileError::Parsing))
-                    .map_err(|Located { value: err, pos }| PathLocated::new(Located::new(RunTimeError::Compiling(err), pos), file_path.clone()))?,
-                &file_path
-            ).map_err(|Located { value: err, pos }| PathLocated::new(Located::new(RunTimeError::Compiling(err), pos), file_path.clone()))?;
+                    .map_err(|Located { value: err, pos }| PathLocated::new(Located::new(RunTimeError::Compiling(err), pos), full_path.clone()))?,
+                &full_path
+            ).map_err(|Located { value: err, pos }| PathLocated::new(Located::new(RunTimeError::Compiling(err), pos), full_path.clone()))?;
             let __module = interpreter.globals.remove("__module").unwrap_or_default();
             let value = interpreter.run(Rc::new(RefCell::new(closure)))
-                .map_err(|traced| PathLocated::new(traced.err.located, file_path))?;
+                .map_err(|traced| PathLocated::new(traced.err.located, full_path))?;
             interpreter.globals.insert("__module".to_string(), __module);
             Ok(value)
         }

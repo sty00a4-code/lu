@@ -9,7 +9,11 @@ let Range = function(start, end) {
 let Position = function(ln, col) {
     return setmeta({
         ln = ln,
-        col = col
+        col = col,
+        extend = function(self, other) {
+            self.ln.end = other.ln.end
+            self.col.end = other.col.end
+        }
     }, {
         __name = "position"
     })

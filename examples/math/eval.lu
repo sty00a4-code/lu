@@ -1,0 +1,42 @@
+function eval(ast) {
+    let handle = {
+        int = function(ast) {
+            return ok(ast.value)
+        },
+        float = function(ast) {
+            return ok(value.value)
+        },
+        ident = function(ast) {
+            return err({
+                msg = "cannot resolve identifier '" + ast.value + "'",
+                pos = ast.pos
+            })
+        },
+        binary = function(ast) {
+            let res = eval(ast.left) if res.type == "error" { return res }
+            let left = res.value
+            let res = eval(ast.right) if res.type == "error" { return res }
+            let right = res.value
+            if type(left) != "int" & type(right) != "float" {
+                return err({
+                    msg = "cannot perform binary operation on " + type(left) + " and " + type(right)
+                })
+            }
+            if ast.op == "+" {
+                return ok(left + right)
+            } else if ast.op == "-" {
+                return ok(left - right)
+            } else if ast.op == "*" {
+                return ok(left * right)
+            } else if ast.op == "/" {
+                return ok(left / right)
+            }
+            return err({
+                msg = "invalid binary operator '" + ast.op + "'"
+            })
+        },
+    }
+    return handle[ast.type](ast)
+}
+
+return eval

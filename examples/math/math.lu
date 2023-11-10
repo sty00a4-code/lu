@@ -1,2 +1,30 @@
 let lexer = require "lexer/lexer.lu"
-print(lexer)
+let parser = require "parser/parser.lu"
+let eval = require "eval.lu"
+
+while true {
+    let text = input("> ")
+
+    let l = lexer.Lexer(text)
+    let res = l:lex()
+    if res.type == "error" {
+        print(res.error.msg)
+        continue
+    }
+    let tokens = res.value
+
+    let p = parser.Parser(tokens)
+    let res = p:parse()
+    if res.type == "error" {
+        print(res.error.msg)
+        continue
+    }
+    let ast = res.value
+
+    let res = eval(ast)
+    if res.type == "error" {
+        print(res.error.msg)
+        continue
+    }
+    print(res.value)
+}

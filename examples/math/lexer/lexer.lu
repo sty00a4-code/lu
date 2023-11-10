@@ -1,0 +1,99 @@
+tokens = require "tokens.lu"
+symbols = ["+", "-", "*", "/", "(", ")"]
+
+let Lexer = function(text) {
+    return setmeta({
+        text = text,
+        idx = 0,
+        ln = 0,
+        col = 0,
+        get = function(self) {
+            return self.text[self.idx]
+        },
+        pos = function(self) {
+            return tokens.Position(tokens.Range(self.ln, self.ln), tokens.Range(self.col, self.col + 1))
+        },
+        advance = function(self) {
+            if self:get() == "\n" {
+                self.ln += 1
+                self.col = 0
+            } else {
+                self.col += 1
+            }
+            self.idx += 1
+        },
+        next = function(self) {
+            while self:get() {
+                if !self:get():is_whitespace() {
+                    break
+                }
+                self:advance()
+            }
+            let c = self:get()
+            let pos = self:pos()
+            self:advance()
+            if c:is_punctuation() & symbols:contains(c) {
+                return ok(tokens.Token("symbol", c, pos))
+            } else if c:is_digit() {
+                let number = c
+                while self:get() {
+                    if !self:get():is_digit() {
+                        break
+                    }
+                    number += self:get()
+                    self:advance()
+                    pos:extend(self:pos())
+                }
+                if self:get() == "." {
+                    number += self:get()
+                    self:advance()
+                    pos:extend(self:pos())
+                    while self:get() {
+                        if !self:get():is_digit() {
+                            break
+                        }
+                        number += self:get()
+                        self:advance()
+                        pos:extend(self:pos())
+                    }
+                    return ok(tokens.Token("float", tofloat(number), pos))
+                } else {
+                    return ok(tokens.Token("int", toint(number), pos))
+                }
+            } else if c:is_alphanumeric() | c == "_" {
+                let ident = c
+                while self:get() {
+                    if !self:get():is_alphanumeric() & self:get() != "_" {
+                        break
+                    }
+                    ident += self:get()
+                    self:advance()
+                    pos:extend(self:pos())
+                }
+                return ok(tokens.Token("ident", ident, pos))
+            }
+            return err({
+                msg = "bad character: '" + c + "'",
+                pos = pos
+            })
+        },
+        lex = function(self) {
+            let tokens = []
+            while self:get() {
+                let res = self:next()
+                if res.type == "error" {
+                    return res
+                }
+                tokens:push(res.value)
+            }
+            return ok(tokens)
+        }
+    }, {
+        __name = "lexer"
+    })
+}
+
+return {
+    tokens = tokens,
+    Lexer = Lexer,
+}

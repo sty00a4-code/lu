@@ -1,0 +1,114 @@
+binary_layers = [
+    ["+", "-"],
+    ["*", "/"]
+]
+function display(ast, indent) {
+    indent = indent | 0
+    let s = "{\n"
+    let prefix = "    " * indent
+    let sub_prefix = "    " * (indent + 1)
+    
+    for key in keys(ast) {
+        if key == "pos" { continue }
+        let value = ast[key]
+        s += sub_prefix + key + " = "
+        if type(value) == "object" {
+            s += display(value, indent + 1)
+        } else {
+            s += tostr(value)
+        }
+        s += "\n"
+    }
+
+    return s + prefix + "}"
+}
+
+let Parser = function(tokens) {
+    return setmeta({
+        tokens = tokens,
+        idx = 0,
+        get = function(self) {
+            return self.tokens[self.idx]
+        },
+        advance = function(self) {
+            self.idx += 1
+        },
+        token = function(self) {
+            let token = self:get()
+            self:advance()
+            return token
+        },
+        parse = function(self) {
+            return self:binary(0)
+        },
+        binary = function(self, layer) {
+            let ops = binary_layers[layer]
+            if !ops {
+                return self:atom()
+            }
+            let res = self:binary(layer + 1) if res.type == "error" { return res }
+            let left = res.value
+            while self:get() {
+                if self:get().kind != "symbol" {
+                    break
+                }
+                if !ops:contains(self:get().value) {
+                    break
+                }
+                let op = self:token().value
+                let res = self:binary(layer + 1) if res.type == "error" { return res }
+                let right = res.value
+                left = {
+                    type = "binary",
+                    op = op,
+                    left = left,
+                    right = right
+                }
+            }
+            return ok(left)
+        },
+        atom = function(self) {
+            let token = self:token()
+            if !token {
+                return err({
+                    msg = "unexpected end of file"
+                })
+            }
+            if ["int", "float", "ident"]:contains(token.kind) {
+                return ok({
+                    type = token.kind,
+                    value = token.value,
+                    pos = token.pos,
+                })
+            } else if token.value == "(" {
+                let res = self:binary(0)
+                if res.type == "error" {
+                    return res
+                }
+                let expr = res.value
+
+                let token = self:token() | {}
+                if token.value != ")" {
+                    return err({
+                        msg = "expected ')'",
+                        pos = token.pos
+                    })
+                }
+
+                return ok(expr)
+            } else {
+                return err({
+                    msg = "unexpected token",
+                    pos = token.pos
+                })
+            }
+        }
+    }, {
+        __name = "parser"
+    })
+}
+
+return {
+    Parser = Parser,
+    display = display
+}

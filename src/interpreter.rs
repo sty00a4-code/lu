@@ -786,7 +786,16 @@ impl Debug for Value {
             Value::Bool(v) => write!(f, "{v:?}"),
             Value::String(string) => write!(f, "{string:?}"),
             Value::Vector(vector) => write!(f, "{:?}", vector.borrow()),
-            Value::Object(object) => write!(f, "object:{:?}", object.as_ptr()),
+            Value::Object(object) => write!(
+                f,
+                "{}:{:?}",
+                if let Some(name) = object.borrow().get_meta("__name") {
+                    name.to_string()
+                } else {
+                    "object".to_string()
+                },
+                object.as_ptr()
+            ),
             Value::Function(kind) => write!(f, "function:{kind}"),
         }
     }
