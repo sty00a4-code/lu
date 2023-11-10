@@ -5,7 +5,7 @@ if false {
     print "never gets printed"
 }
 
-let n = to_int(input "enter a number: ")
+let n = toint(input "enter a number: ")
 if n {
     if n == 1 {
         print "one"

@@ -4,7 +4,7 @@ use oneparse::position::{Located, Positon};
 
 use crate::{
     compile_ast, generate_ast,
-    interpreter::{FunctionKind, Interpreter, Object, RunTimeError, Value},
+    interpreter::{FunctionKind, Interpreter, Object, RunTimeError, Value, PathLocated},
     parser::CompileError,
 };
 
@@ -28,7 +28,7 @@ macro_rules! make_module {
     };
 }
 macro_rules! collect_args {
-    ($args:ident $pos:ident : $($var:pat => if ! $value:expr),* => $body:block) => {
+    ($args:ident $pos:ident $path:ident : $($var:pat => if ! $value:expr),* => $body:block) => {
         {
             #[allow(unused_variables)]
             #[allow(unused_mut)]
@@ -37,7 +37,7 @@ macro_rules! collect_args {
                 arg_idx += 1;
                 #[allow(irrefutable_let_patterns)]
                 let $var = $args.get(arg_idx - 1).cloned().unwrap_or_default() else {
-                    return Err(Located::new(RunTimeError::Custom(format!("expected {} for argument #{}, got {}", $value.typ(), arg_idx - 1, $args.get(arg_idx - 1).cloned().unwrap_or_default().typ())), $pos.clone()))
+                    return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected {} for argument #{}, got {}", $value.typ(), arg_idx - 1, $args.get(arg_idx - 1).cloned().unwrap_or_default().typ())), $pos.clone()), $path.to_string()))
                 };
             )*
             $body
@@ -143,7 +143,7 @@ pub fn std_env() -> HashMap<String, Value> {
     );
     env.insert(
         "range".to_string(),
-        Value::Function(FunctionKind::NativeFunction(_vec_range))
+        Value::Function(FunctionKind::NativeFunction(_vec_range)),
     );
     env.insert(
         "str".to_string(),
@@ -209,7 +209,8 @@ pub fn _print(
     _: &mut Interpreter,
     args: Vec<Value>,
     _: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
+    _: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
     println!(
         "{}",
         args.into_iter()
@@ -223,8 +224,9 @@ pub fn _input(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         prefix => if ! Value::String(Default::default())
         => {
             let mut input = String::new();
@@ -240,8 +242,9 @@ pub fn _setmeta(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Object(object) => if ! Value::Object(Default::default()),
         meta => if ! Value::default()
         => {
@@ -256,8 +259,9 @@ pub fn _getmeta(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Object(object) => if ! Value::Object(Default::default())
         => {
             let object = object.borrow();
@@ -269,14 +273,15 @@ pub fn _error(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(msg) => if ! Value::Int(Default::default())
         => {
-            Err(Located::new(
+            Err(PathLocated::new(Located::new(
                 RunTimeError::Custom(msg),
                 pos.clone(),
-            ))
+            ), path.to_string()))
         }
     )
 }
@@ -284,17 +289,18 @@ pub fn _assert(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         cond => if ! Value::Bool(Default::default())
         => {
             if bool::from(&cond) {
                 Ok(None)
             } else {
-                Err(Located::new(
+                Err(PathLocated::new(Located::new(
                     RunTimeError::Custom("assert failed!".to_string()),
                     pos.clone(),
-                ))
+                ), path.to_string()))
             }
         }
     )
@@ -303,8 +309,9 @@ pub fn _os_exit(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Int(code) => if ! Value::Int(Default::default())
         => {
             std::process::exit(code);
@@ -315,8 +322,9 @@ pub fn _ok(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::default()
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(Ok::<Value, Value>(value).into())))))
@@ -327,8 +335,9 @@ pub fn _err(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::default()
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(Err::<Value, Value>(value).into())))))
@@ -339,8 +348,9 @@ pub fn _some(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::default()
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(Some(value).into())))))
@@ -351,8 +361,9 @@ pub fn _none(
     _: &mut Interpreter,
     _: Vec<Value>,
     _: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    _: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(None::<Value>.into())))))
         }
@@ -363,8 +374,9 @@ pub fn _to_int(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Null
         => {
             match value {
@@ -382,8 +394,9 @@ pub fn _to_float(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Null
         => {
             match value {
@@ -401,8 +414,9 @@ pub fn _to_bool(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
             value => if ! Value::Null
             => {
                 Ok(Some(Value::Bool(bool::from(&value))))
@@ -413,7 +427,8 @@ pub fn _to_str(
     _: &mut Interpreter,
     args: Vec<Value>,
     _: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
+    _: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
     Ok(Some(Value::String(
         args.into_iter()
             .map(|arg| arg.to_string())
@@ -425,11 +440,12 @@ pub fn _to_vec(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
     if args.len() > 1 {
         Ok(Some(Value::Vector(Rc::new(RefCell::new(args)))))
     } else {
-        collect_args!(args pos:
+        collect_args!(args pos path:
             value => if ! Value::Null
             => {
                 match value {
@@ -451,8 +467,9 @@ pub fn _obj_keys(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Object(object) => if ! Value::Object(Default::default())
         => {
             let object = object.borrow();
@@ -464,8 +481,9 @@ pub fn _obj_values(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Object(object) => if ! Value::Object(Default::default())
         => {
             let object = object.borrow();
@@ -477,8 +495,9 @@ pub fn _obj_get(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Object(object) => if ! Value::Object(Default::default()),
         Value::String(key) => if ! Value::String(Default::default()),
         default => if ! Value::default()
@@ -493,8 +512,9 @@ pub fn _str_get(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(string) => if ! Value::String(Default::default()),
         Value::Int(index) => if ! Value::Int(Default::default()),
         Value::String(default) => if ! Value::String(Default::default())
@@ -513,8 +533,9 @@ pub fn _str_len(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(string) => if ! Value::String(Default::default())
         => {
             Ok(Some(Value::Int(string.len() as i32)))
@@ -525,8 +546,9 @@ pub fn _str_char(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Int(byte) => if ! Value::Int(Default::default())
         => {
             Ok(Some(Value::String((byte as u8 as char).to_string())))
@@ -537,8 +559,9 @@ pub fn _str_byte(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(string) => if ! Value::Int(Default::default()),
         index => if ! Value::Int(Default::default())
         => {
@@ -555,8 +578,9 @@ pub fn _str_upper(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(string) => if ! Value::Int(Default::default())
         => {
             Ok(Some(Value::String(string.to_uppercase())))
@@ -567,8 +591,9 @@ pub fn _str_lower(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(string) => if ! Value::Int(Default::default())
         => {
             Ok(Some(Value::String(string.to_lowercase())))
@@ -579,8 +604,9 @@ pub fn _str_split(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(string) => if ! Value::String(Default::default()),
         Value::String(sep) => if ! Value::String(Default::default())
         => {
@@ -594,8 +620,9 @@ pub fn _vec_get(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default()),
         Value::Int(index) => if ! Value::Int(Default::default()),
         default => if ! Value::default()
@@ -609,8 +636,9 @@ pub fn _vec_len(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default())
         => {
             let vector = vector.borrow();
@@ -622,8 +650,9 @@ pub fn _vec_push(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default()),
         value => if ! Value::default()
         => {
@@ -636,8 +665,9 @@ pub fn _vec_insert(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default()),
         Value::Int(index) => if ! Value::Vector(Default::default()),
         value => if ! Value::default()
@@ -652,8 +682,9 @@ pub fn _vec_pop(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default())
         => {
             let mut vector = vector.borrow_mut();
@@ -665,8 +696,9 @@ pub fn _vec_remove(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default()),
         Value::Int(index) => if ! Value::Vector(Default::default())
         => {
@@ -682,8 +714,9 @@ pub fn _vec_pos(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default()),
         value => if ! Value::default()
         => {
@@ -696,8 +729,9 @@ pub fn _vec_range(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Int(start) => if ! Value::Vector(Default::default()),
         Value::Int(end) => if ! Value::Vector(Default::default()),
         step => if ! Value::default()
@@ -728,8 +762,9 @@ pub fn _vec_join(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default()),
         Value::String(sep) => if ! Value::String(Default::default())
         => {
@@ -742,8 +777,9 @@ pub fn _vec_sort(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::Vector(vector) => if ! Value::Vector(Default::default())
         => {
             let mut vector = vector.borrow().clone();
@@ -757,14 +793,15 @@ pub fn _math_floor(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             match value {
                 Value::Int(value) => Ok(Some(Value::Int(value))),
                 Value::Float(value) => Ok(Some(Value::Float(value.floor()))),
-                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             }
         }
     )
@@ -773,14 +810,15 @@ pub fn _math_ceil(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             match value {
                 Value::Int(value) => Ok(Some(Value::Int(value))),
                 Value::Float(value) => Ok(Some(Value::Float(value.ceil()))),
-                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             }
         }
     )
@@ -789,14 +827,15 @@ pub fn _math_round(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             match value {
                 Value::Int(value) => Ok(Some(Value::Int(value))),
                 Value::Float(value) => Ok(Some(Value::Float(value.round()))),
-                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             }
         }
     )
@@ -805,14 +844,15 @@ pub fn _math_abs(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             match value {
                 Value::Int(value) => Ok(Some(Value::Int(value.abs()))),
                 Value::Float(value) => Ok(Some(Value::Float(value.abs()))),
-                value => Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             }
         }
     )
@@ -821,14 +861,15 @@ pub fn _math_cos(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.cos())))
         }
@@ -838,14 +879,15 @@ pub fn _math_sin(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.sin())))
         }
@@ -855,14 +897,15 @@ pub fn _math_tan(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.tan())))
         }
@@ -872,14 +915,15 @@ pub fn _math_acos(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.acos())))
         }
@@ -889,14 +933,15 @@ pub fn _math_asin(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.asin())))
         }
@@ -906,14 +951,15 @@ pub fn _math_atan(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.atan())))
         }
@@ -923,14 +969,15 @@ pub fn _math_cosh(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.cosh())))
         }
@@ -940,14 +987,15 @@ pub fn _math_sinh(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.sinh())))
         }
@@ -957,14 +1005,15 @@ pub fn _math_tanh(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.tanh())))
         }
@@ -974,14 +1023,15 @@ pub fn _math_acosh(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.acosh())))
         }
@@ -991,14 +1041,15 @@ pub fn _math_asinh(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.asinh())))
         }
@@ -1008,14 +1059,15 @@ pub fn _math_atanh(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.atanh())))
         }
@@ -1025,20 +1077,21 @@ pub fn _math_atan2(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         value => if ! Value::Float(Default::default()),
         value2 => if ! Value::Float(Default::default())
         => {
             let value = match value {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             let value2 = match value2 {
                 Value::Int(value) => value as f32,
                 Value::Float(value) => value,
-                value => return Err(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()))
+                value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             Ok(Some(Value::Float(value.atan2(value2))))
         }
@@ -1049,8 +1102,9 @@ pub fn _os_execute(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(cmd) => if ! Value::String(Default::default())
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(
@@ -1074,7 +1128,8 @@ pub fn _os_args(
     _: &mut Interpreter,
     _: Vec<Value>,
     _: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
+    _: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
     Ok(Some(Value::Vector(Rc::new(RefCell::new(
         std::env::args()
             .skip(1)
@@ -1086,8 +1141,9 @@ pub fn _os_var(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(var) => if ! Value::String(Default::default())
         => {
             Ok(std::env::var(var).map(Value::String).ok())
@@ -1098,8 +1154,9 @@ pub fn _os_set_var(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         var => if ! Value::String(Default::default()),
         value => if ! Value::String(Default::default())
         => {
@@ -1112,7 +1169,8 @@ pub fn _os_env(
     _: &mut Interpreter,
     _: Vec<Value>,
     _: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
+    _: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
     Ok(Some(Value::Object(Rc::new(RefCell::new(Object {
         map: std::env::vars()
             .map(|(key, value)| (key, Value::String(value)))
@@ -1124,8 +1182,9 @@ pub fn _fs_read(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(path) => if ! Value::String(Default::default())
         => {
             Ok(std::fs::read_to_string(path).ok().map(Value::String))
@@ -1136,8 +1195,9 @@ pub fn _fs_write(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(path) => if ! Value::String(Default::default()),
         Value::String(content) => if ! Value::String(Default::default())
         => {
@@ -1149,8 +1209,9 @@ pub fn _fs_rename(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(old_path) => if ! Value::String(Default::default()),
         Value::String(new_path) => if ! Value::String(Default::default())
         => {
@@ -1162,8 +1223,9 @@ pub fn _fs_remove(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(path) => if ! Value::String(Default::default())
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::remove_file(path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
@@ -1174,8 +1236,9 @@ pub fn _fs_remove_dir(
     _: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos:
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
         Value::String(path) => if ! Value::String(Default::default())
         => {
             Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::remove_dir(path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
@@ -1187,25 +1250,35 @@ pub fn _require(
     interpreter: &mut Interpreter,
     args: Vec<Value>,
     pos: &Positon,
-) -> Result<Option<Value>, Located<RunTimeError>> {
-    collect_args!(args pos :
-        Value::String(path) => if ! Value::String(Default::default())
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(file_path) => if ! Value::String(Default::default())
         => {
-            let text = match fs::read_to_string(&path) {
+            let current_dir = {
+                let dir = match std::env::current_dir() {
+                    Ok(path_buf) => String::from(path_buf.to_str().unwrap()),
+                    Err(err) => {
+                        return Err(PathLocated::new(Located::new(RunTimeError::FileNotFound(file_path.clone(), err.to_string()), pos.clone()), path.to_string()))
+                    }
+                };
+                let current_file = std::path::PathBuf::try_from(dir.clone() + "/" + &interpreter.current_call_frame().unwrap().path).unwrap();
+                current_file.parent().unwrap().to_str().unwrap().to_string()
+            };
+            let full_path = current_dir + "/" + &file_path;
+            let text = match fs::read_to_string(full_path) {
                 Ok(text) => text,
-                Err(err) => return Err(Located::new(RunTimeError::FileNotFound(err.to_string()), pos.clone()))
+                Err(err) => return Err(PathLocated::new(Located::new(RunTimeError::FileNotFound(file_path.clone(), err.to_string()), pos.clone()), path.to_string()))
             };
             let closure = compile_ast(
                 generate_ast(text)
                     .map_err(|err| err.map(CompileError::Parsing))
-                    .map_err(|err| err.map(RunTimeError::Compiling))?,
-                &path
-            ).map_err(|err| err.map(RunTimeError::Compiling))?;
-            let mut globals = interpreter.globals.clone();
-            let __module = globals.remove("__module").unwrap_or_default();
-            let mut sub_interpreter = Interpreter::default().with_globals(globals);
-            let value = sub_interpreter.run(Rc::new(RefCell::new(closure))).map_err(|traced| traced.err)?;
-            interpreter.globals = sub_interpreter.globals;
+                    .map_err(|Located { value: err, pos }| PathLocated::new(Located::new(RunTimeError::Compiling(err), pos), file_path.clone()))?,
+                &file_path
+            ).map_err(|Located { value: err, pos }| PathLocated::new(Located::new(RunTimeError::Compiling(err), pos), file_path.clone()))?;
+            let __module = interpreter.globals.remove("__module").unwrap_or_default();
+            let value = interpreter.run(Rc::new(RefCell::new(closure)))
+                .map_err(|traced| PathLocated::new(traced.err.located, file_path))?;
             interpreter.globals.insert("__module".to_string(), __module);
             Ok(value)
         }

@@ -5,7 +5,7 @@ pub mod parser;
 pub mod std_env;
 
 use compiler::Closure;
-use interpreter::Traced;
+use interpreter::{Traced, PathLocated};
 use oneparse::{parse, position::Located};
 use parser::CompileError;
 use std::{cell::RefCell, fs, process::exit, rc::Rc};
@@ -73,7 +73,7 @@ fn main() {
         }
         Err(Traced {
             trace,
-            err: Located { value: err, pos },
+            err: PathLocated { located: Located { value: err, pos }, path },
         }) => {
             eprintln!(
                 "ERROR {}:{}:{}: {err}",

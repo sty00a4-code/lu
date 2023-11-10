@@ -11,7 +11,7 @@ while idx < 10 {
     idx = idx + 1
 }
 
-let v = to_vec("hello world!")
+let v = tovec("hello world!")
 let idx = 0
 while v[idx] {
     if v[idx] == " " {

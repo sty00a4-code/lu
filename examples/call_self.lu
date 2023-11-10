@@ -2,7 +2,7 @@ let person = {
     name = "Joe",
     age = 30,
     greet = function (self) {
-        return to_str("Hello! My name is ", self.name, " and I'm ", self.age, " years old.")
+        return tostr("Hello! My name is ", self.name, " and I'm ", self.age, " years old.")
     }
 }
 print(person:greet())

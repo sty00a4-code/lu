@@ -1,0 +1,12 @@
+let Range = function(start, end) {
+    return setmeta({
+        start = start,
+        end = end
+    }, {
+        __name = "range"
+    })
+}
+
+return {
+    Range = Range
+}
