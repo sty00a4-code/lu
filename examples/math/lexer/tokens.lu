@@ -1,0 +1,31 @@
+let Range = function(start, end) {
+    return setmeta({
+        start = start,
+        end = end
+    }, {
+        __name = "range"
+    })
+}
+let Position = function(ln, col) {
+    return setmeta({
+        ln = ln,
+        col = col
+    }, {
+        __name = "position"
+    })
+}
+let Token = function(kind, value, pos) {
+    return setmeta({
+        kind = kind,
+        value = value,
+        pos = pos
+    }, {
+        __name = "token"
+    })
+}
+
+return {
+    Range = Range,
+    Position = Position,
+    Token = Token,
+}

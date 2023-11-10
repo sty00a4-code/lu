@@ -236,6 +236,9 @@ impl Interpreter {
         self.enter_call(closure, vec![], Some(Location::Global(0)));
         loop {
             if self.step().map_err(|err| self.create_trace(err, call_offset))? {
+                while self.call_stack.len() > call_offset {
+                    self.call_stack.pop();
+                }
                 break;
             }
             if self.call_stack.len() == call_offset {
