@@ -113,6 +113,7 @@ pub fn std_env() -> HashMap<String, Value> {
     env.insert(
         "obj".to_string(),
         make_module!("obj":
+            "copy" = Value::Function(FunctionKind::NativeFunction(_obj_copy)),
             "keys" = Value::Function(FunctionKind::NativeFunction(_obj_keys)),
             "values" = Value::Function(FunctionKind::NativeFunction(_obj_values)),
             "get" = Value::Function(FunctionKind::NativeFunction(_obj_get))
@@ -125,6 +126,7 @@ pub fn std_env() -> HashMap<String, Value> {
     env.insert(
         "vec".to_string(),
         make_module!("vec":
+            "copy" = Value::Function(FunctionKind::NativeFunction(_vec_copy)),
             "get" = Value::Function(FunctionKind::NativeFunction(_vec_get)),
             "len" = Value::Function(FunctionKind::NativeFunction(_vec_len)),
             "push" = Value::Function(FunctionKind::NativeFunction(_vec_push)),
@@ -457,6 +459,20 @@ pub fn _to_vec(
     }
 }
 
+pub fn _obj_copy(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::Object(object) => if ! Value::Object(Default::default())
+        => {
+            let object = object.borrow();
+            Ok(Some(Value::Object(Rc::new(RefCell::new(object.clone())))))
+        }
+    )
+}
 pub fn _obj_keys(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -763,6 +779,20 @@ pub fn _str_is_punctuation(
     )
 }
 
+pub fn _vec_copy(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::Vector(vector) => if ! Value::Vector(Default::default())
+        => {
+            let vector = vector.borrow();
+            Ok(Some(Value::Vector(Rc::new(RefCell::new(vector.clone())))))
+        }
+    )
+}
 pub fn _vec_get(
     _: &mut Interpreter,
     args: Vec<Value>,
