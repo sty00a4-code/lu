@@ -23,7 +23,10 @@ pub enum Value {
     Vector(Rc<RefCell<Vec<Self>>>),
     Object(Rc<RefCell<Object>>),
     Function(FunctionKind),
+
+    ForeignObject(Rc<RefCell<Box<dyn ForeignData>>>)
 }
+
 #[derive(Clone)]
 pub enum FunctionKind {
     Function(Rc<RefCell<Closure>>),
@@ -49,6 +52,11 @@ impl Object {
             None
         }
     }
+}
+pub trait ForeignData: Display {
+    fn name(&self) -> String;
+    fn get(&self, key: &str) -> Option<Value>;
+    fn set(&mut self, key: String, value: Value);
 }
 
 #[derive(Debug, Default)]
@@ -448,6 +456,16 @@ impl Interpreter {
                             ), self.current_path().expect("no current path found").clone()));
                         }
                     }
+                    Value::ForeignObject(object) => {
+                        if let Value::String(field) = field {
+                            object.borrow_mut().set(field.clone(), value);
+                        } else {
+                            return Err(PathLocated::new(Located::new(
+                                RunTimeError::InvalidField(Value::ForeignObject(object.clone()), field),
+                                pos,
+                            ), self.current_path().expect("no current path found").clone()));
+                        }
+                    }
                     Value::Vector(vector) => {
                         if let Value::Int(index) = field {
                             if let Some(old_value) =
@@ -691,6 +709,15 @@ impl Interpreter {
                             return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
                         }
                     },
+                    Value::ForeignObject(object) => match field {
+                        Value::String(field) => object
+                            .borrow()
+                            .get(field.as_str())
+                            .unwrap_or_default(),
+                        field => {
+                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                        }
+                    },
                     Value::Vector(vector) => match field {
                         Value::Int(index) => vector
                             .borrow()
@@ -729,7 +756,7 @@ impl Value {
             Value::Bool(_) => "bool",
             Value::String(_) => "string",
             Value::Vector(_) => "vector",
-            Value::Object(_) => "object",
+            Value::Object(_) | Value::ForeignObject(_) => "object",
             Value::Function(_) => "function",
         }
     }
@@ -774,6 +801,11 @@ impl Display for Value {
                 object.as_ptr()
             ),
             Value::Function(kind) => write!(f, "function:{kind}"),
+            Value::ForeignObject(object) => write!(
+                f,
+                "{}",
+                object.borrow(),
+            ),
         }
     }
 }
@@ -797,6 +829,11 @@ impl Debug for Value {
                 object.as_ptr()
             ),
             Value::Function(kind) => write!(f, "function:{kind}"),
+            Value::ForeignObject(object) => write!(
+                f,
+                "{}",
+                object.borrow(),
+            ),
         }
     }
 }
@@ -836,6 +873,7 @@ impl From<&Value> for bool {
             Value::Vector(vector) => !vector.borrow().is_empty(),
             Value::Object(_) => true,
             Value::Function(_) => true,
+            Value::ForeignObject(_) => true,
         }
     }
 }
