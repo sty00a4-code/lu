@@ -27,8 +27,8 @@ pub enum AssignOperator {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Let {
-        ident: Located<Ident>,
-        expr: Located<Expression>,
+        idents: Vec<Located<Ident>>,
+        exprs: Vec<Located<Expression>>,
     },
     Assign {
         op: AssignOperator,
@@ -49,6 +49,10 @@ pub enum Statement {
         case: Located<Block>,
         else_case: Option<Located<Block>>,
     },
+    // Match {
+    //     expr: Located<Expression>,
+    //     cases: Vec<(Located<Expression>, Located<Block>)>
+    // },
     While {
         cond: Located<Expression>,
         body: Located<Block>,
@@ -411,11 +415,20 @@ impl Parsable<Token> for Statement {
         } = expect!(parser);
         match token {
             Token::Let => {
-                let ident = Ident::parse(parser)?;
+                let mut idents = vec![Ident::parse(parser)?];
+                while let Some(Located { value: Token::Comma, pos: _ }) = parser.token_ref() {
+                    parser.token();
+                    idents.push(Ident::parse(parser)?);
+                }
                 expect_token!(parser: Equal);
                 let expr = Expression::parse(parser)?;
                 pos.extend(&expr.pos);
-                Ok(Located::new(Self::Let { ident, expr }, pos))
+                let mut exprs = vec![expr];
+                while let Some(Located { value: Token::Comma, pos: _ }) = parser.token_ref() {
+                    parser.token();
+                    exprs.push(Expression::parse(parser)?);
+                }
+                Ok(Located::new(Self::Let { idents, exprs }, pos))
             }
             Token::Return => {
                 let expr = Expression::parse(parser)?;
@@ -939,18 +952,25 @@ impl Compilable for Located<Statement> {
     fn compile(self, compiler: &mut Compiler) -> Result<Self::Output, Located<Self::Error>> {
         let Located { value: stat, pos } = self;
         match stat {
-            Statement::Let { ident, expr } => {
-                let dst = compiler.new_register();
-                let src = expr.compile(compiler)?;
-                compiler.write(
-                    ByteCode::Move {
-                        dst: Location::Register(dst),
-                        src,
-                    },
-                    pos,
-                );
-                let scope = compiler.get_scope_mut().expect("no scope on scope stack");
-                scope.new_local(ident.value.0, dst);
+            Statement::Let { mut idents, mut exprs } => {
+                while !idents.is_empty() {
+                    let ident = idents.remove(0);
+                    let dst = compiler.new_register();
+                    let src = if !exprs.is_empty() {
+                        exprs.remove(0).compile(compiler)?
+                    } else {
+                        Source::Null
+                    };
+                    compiler.write(
+                        ByteCode::Move {
+                            dst: Location::Register(dst),
+                            src,
+                        },
+                        pos.clone(),
+                    );
+                    let scope = compiler.get_scope_mut().expect("no scope on scope stack");
+                    scope.new_local(ident.value.0, dst);
+                }
                 Ok(())
             }
             Statement::Assign {
