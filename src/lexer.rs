@@ -9,8 +9,8 @@ use oneparse::{lexer::*, position::Located};
 pub enum Token {
     Ident(String),
     Null,
-    Int(i32),
-    Float(f32),
+    Int(isize),
+    Float(f64),
     Bool(bool),
     String(String),
 

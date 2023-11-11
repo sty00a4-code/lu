@@ -82,8 +82,8 @@ pub enum Source {
     Register(usize),
     Const(usize),
     Null,
-    Int(i32),
-    Float(f32),
+    Int(isize),
+    Float(f64),
     Bool(bool),
     Global(usize),
 }

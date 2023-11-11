@@ -5,7 +5,7 @@ function eval(ast, env) {
             return ok(ast.value)
         },
         float = function(ast, env) {
-            return ok(value.value)
+            return ok(ast.value)
         },
         ident = function(ast, env) {
             return ok(env[ast.value])

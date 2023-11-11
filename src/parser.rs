@@ -133,8 +133,8 @@ pub enum Expression {
 pub enum Atom {
     Path(Path),
     Null,
-    Int(i32),
-    Float(f32),
+    Int(isize),
+    Float(f64),
     Bool(bool),
     String(String),
     Expression(Box<Located<Expression>>),

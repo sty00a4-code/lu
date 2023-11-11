@@ -16,8 +16,8 @@ use crate::{
 pub enum Value {
     #[default]
     Null,
-    Int(i32),
-    Float(f32),
+    Int(isize),
+    Float(f64),
     Bool(bool),
     String(String),
     Vector(Rc<RefCell<Vec<Self>>>),
@@ -470,7 +470,7 @@ impl Interpreter {
                     Value::Vector(vector) => {
                         if let Value::Int(index) = field {
                             if let Some(old_value) =
-                                vector.borrow_mut().get_mut(index.unsigned_abs() as usize)
+                                vector.borrow_mut().get_mut(index.unsigned_abs())
                             {
                                 *old_value = value;
                             }
@@ -520,9 +520,9 @@ impl Interpreter {
                         (Value::Int(left), Value::Int(right)) => Value::Bool(left < right),
                         (Value::Float(left), Value::Float(right)) => Value::Bool(left < right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Bool((left as f32) < right)
+                            Value::Bool((left as f64) < right)
                         }
-                        (Value::Float(left), Value::Int(right)) => Value::Bool(left < right as f32),
+                        (Value::Float(left), Value::Int(right)) => Value::Bool(left < right as f64),
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
                                 RunTimeError::Binary(op, left, right),
@@ -533,8 +533,8 @@ impl Interpreter {
                     BinaryOperator::GT => match (left, right) {
                         (Value::Int(left), Value::Int(right)) => Value::Bool(left > right),
                         (Value::Float(left), Value::Float(right)) => Value::Bool(left > right),
-                        (Value::Int(left), Value::Float(right)) => Value::Bool(left as f32 > right),
-                        (Value::Float(left), Value::Int(right)) => Value::Bool(left > right as f32),
+                        (Value::Int(left), Value::Float(right)) => Value::Bool(left as f64 > right),
+                        (Value::Float(left), Value::Int(right)) => Value::Bool(left > right as f64),
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
                                 RunTimeError::Binary(op, left, right),
@@ -546,10 +546,10 @@ impl Interpreter {
                         (Value::Int(left), Value::Int(right)) => Value::Bool(left <= right),
                         (Value::Float(left), Value::Float(right)) => Value::Bool(left <= right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Bool(left as f32 <= right)
+                            Value::Bool(left as f64 <= right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Bool(left <= right as f32)
+                            Value::Bool(left <= right as f64)
                         }
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
@@ -562,10 +562,10 @@ impl Interpreter {
                         (Value::Int(left), Value::Int(right)) => Value::Bool(left >= right),
                         (Value::Float(left), Value::Float(right)) => Value::Bool(left >= right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Bool(left as f32 >= right)
+                            Value::Bool(left as f64 >= right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Bool(left >= right as f32)
+                            Value::Bool(left >= right as f64)
                         }
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
@@ -578,10 +578,10 @@ impl Interpreter {
                         (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
                         (Value::Float(left), Value::Float(right)) => Value::Float(left + right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Float(left as f32 + right)
+                            Value::Float(left as f64 + right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Float(left + right as f32)
+                            Value::Float(left + right as f64)
                         }
                         (Value::String(left), Value::String(right)) => Value::String(left + &right),
                         (left, right) => {
@@ -595,10 +595,10 @@ impl Interpreter {
                         (Value::Int(left), Value::Int(right)) => Value::Int(left - right),
                         (Value::Float(left), Value::Float(right)) => Value::Float(left - right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Float(left as f32 - right)
+                            Value::Float(left as f64 - right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Float(left - right as f32)
+                            Value::Float(left - right as f64)
                         }
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
@@ -609,14 +609,14 @@ impl Interpreter {
                     },
                     BinaryOperator::Div => match (left, right) {
                         (Value::Int(left), Value::Int(right)) => {
-                            Value::Float(left as f32 / right as f32)
+                            Value::Float(left as f64 / right as f64)
                         }
                         (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Float(left as f32 / right)
+                            Value::Float(left as f64 / right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Float(left / right as f32)
+                            Value::Float(left / right as f64)
                         }
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
@@ -629,13 +629,13 @@ impl Interpreter {
                         (Value::Int(left), Value::Int(right)) => Value::Int(left * right),
                         (Value::Float(left), Value::Float(right)) => Value::Float(left * right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Float(left as f32 * right)
+                            Value::Float(left as f64 * right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Float(left * right as f32)
+                            Value::Float(left * right as f64)
                         }
                         (Value::String(left), Value::Int(right)) => {
-                            Value::String(left.repeat(right.unsigned_abs() as usize))
+                            Value::String(left.repeat(right.unsigned_abs()))
                         }
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
@@ -648,10 +648,10 @@ impl Interpreter {
                         (Value::Int(left), Value::Int(right)) => Value::Int(left % right),
                         (Value::Float(left), Value::Float(right)) => Value::Float(left % right),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Float(left as f32 % right)
+                            Value::Float(left as f64 % right)
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Float(left % right as f32)
+                            Value::Float(left % right as f64)
                         }
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
@@ -662,14 +662,14 @@ impl Interpreter {
                     },
                     BinaryOperator::Pow => match (left, right) {
                         (Value::Int(left), Value::Int(right)) => {
-                            Value::Float((left as f32).powf(right as f32))
+                            Value::Float((left as f64).powf(right as f64))
                         }
                         (Value::Float(left), Value::Float(right)) => Value::Float(left.powf(right)),
                         (Value::Int(left), Value::Float(right)) => {
-                            Value::Float((left as f32).powf(right))
+                            Value::Float((left as f64).powf(right))
                         }
                         (Value::Float(left), Value::Int(right)) => {
-                            Value::Float(left.powf(right as f32))
+                            Value::Float(left.powf(right as f64))
                         }
                         (left, right) => {
                             return Err(PathLocated::new(Located::new(
@@ -751,7 +751,7 @@ impl Interpreter {
                         Value::Int(index) => string
                             .chars()
                             .collect::<Vec<char>>()
-                            .get(index.unsigned_abs() as usize)
+                            .get(index.unsigned_abs())
                             .map(|c| Value::String(String::from(*c)))
                             .unwrap_or_default(),
                         field => {
@@ -787,8 +787,8 @@ impl PartialEq for Value {
             (Self::Null, Self::Null) => true,
             (Self::Int(left), Self::Int(right)) => left == right,
             (Self::Float(left), Self::Float(right)) => left == right,
-            (Self::Int(left), Self::Float(right)) => *left as f32 == *right,
-            (Self::Float(left), Self::Int(right)) => *left == *right as f32,
+            (Self::Int(left), Self::Float(right)) => *left as f64 == *right,
+            (Self::Float(left), Self::Int(right)) => *left == *right as f64,
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::String(left), Self::String(right)) => left == right,
             (Self::Vector(left), Self::Vector(right)) => std::ptr::eq(left, right),
@@ -882,8 +882,8 @@ impl Ord for Value {
         match (self, other) {
             (Value::Int(left), Value::Int(right)) => left.cmp(right),
             (Value::Float(left), Value::Float(right)) => left.total_cmp(right),
-            (Value::Int(left), Value::Float(right)) => (*left as f32).total_cmp(right),
-            (Value::Float(left), Value::Int(right)) => left.total_cmp(&(*right as f32)),
+            (Value::Int(left), Value::Float(right)) => (*left as f64).total_cmp(right),
+            (Value::Float(left), Value::Int(right)) => left.total_cmp(&(*right as f64)),
             _ => Ordering::Equal
         }
     }
@@ -905,13 +905,13 @@ impl From<&Value> for bool {
         }
     }
 }
-impl From<i32> for Value {
-    fn from(value: i32) -> Self {
+impl From<isize> for Value {
+    fn from(value: isize) -> Self {
         Self::Int(value)
     }
 }
-impl From<f32> for Value {
-    fn from(value: f32) -> Self {
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
         Self::Float(value)
     }
 }
@@ -963,7 +963,7 @@ impl<T: Into<Value>> From<Vec<T>> for Value {
         )))
     }
 }
-impl TryFrom<Value> for i32 {
+impl TryFrom<Value> for isize {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
@@ -972,7 +972,7 @@ impl TryFrom<Value> for i32 {
         }
     }
 }
-impl TryFrom<Value> for f32 {
+impl TryFrom<Value> for f64 {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {

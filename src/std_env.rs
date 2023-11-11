@@ -165,7 +165,7 @@ pub fn std_env() -> HashMap<String, Value> {
     env.insert(
         "math".to_string(),
         make_module!("math":
-            "pi" = Value::Float(std::f32::consts::PI),
+            "pi" = Value::Float(std::f64::consts::PI),
             "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
             "ceil" = Value::Function(FunctionKind::NativeFunction(_math_ceil)),
             "round" = Value::Function(FunctionKind::NativeFunction(_math_round)),
@@ -320,7 +320,7 @@ pub fn _os_exit(
     collect_args!(args pos path:
         Value::Int(code) => if ! Value::Int(Default::default())
         => {
-            std::process::exit(code);
+            std::process::exit(code as i32);
         }
     )
 }
@@ -376,7 +376,7 @@ pub fn _to_int(
             match value {
                 Value::Null => Ok(Some(Value::Int(0))),
                 Value::Int(v) => Ok(Some(Value::Int(v))),
-                Value::Float(v) => Ok(Some(Value::Int(v.abs() as i32))),
+                Value::Float(v) => Ok(Some(Value::Int(v.abs() as isize))),
                 Value::Bool(v) => Ok(Some(Value::Int(if v { 1 } else { 0 }))),
                 Value::String(string) => Ok(Some(string.parse().ok().map(Value::Int).unwrap_or_default())),
                 _ => Ok(None)
@@ -395,7 +395,7 @@ pub fn _to_float(
         => {
             match value {
                 Value::Null => Ok(Some(Value::Float(0.))),
-                Value::Int(v) => Ok(Some(Value::Float(v as f32))),
+                Value::Int(v) => Ok(Some(Value::Float(v as f64))),
                 Value::Float(v) => Ok(Some(Value::Float(v))),
                 Value::Bool(v) => Ok(Some(Value::Float(if v { 1. } else { 0. }))),
                 Value::String(string) => Ok(Some(string.parse().ok().map(Value::Float).unwrap_or_default())),
@@ -513,7 +513,7 @@ pub fn _str_get(
         Value::Int(index) => if ! Value::Int(Default::default()),
         Value::String(default) => if ! Value::String(Default::default())
         => {
-            let index = index.unsigned_abs() as usize;
+            let index = index.unsigned_abs();
             Ok(Some(Value::String(
                 string
                     .get(index..=index)
@@ -532,7 +532,7 @@ pub fn _str_len(
     collect_args!(args pos path:
         Value::String(string) => if ! Value::String(Default::default())
         => {
-            Ok(Some(Value::Int(string.len() as i32)))
+            Ok(Some(Value::Int(string.len() as isize)))
         }
     )
 }
@@ -564,7 +564,7 @@ pub fn _str_byte(
             } else {
                 0
             };
-            Ok(string.chars().nth(index).map(|c| c as u8 as i32).map(Value::Int))
+            Ok(string.chars().nth(index).map(|c| c as u8 as isize).map(Value::Int))
         }
     )
 }
@@ -644,7 +644,7 @@ pub fn _str_is_radix(
             } else {
                 0
             };
-            Ok(string.chars().nth(index).map(|c| c.is_digit(radix.unsigned_abs())).map(Value::Bool))
+            Ok(string.chars().nth(index).map(|c| c.is_digit(radix.unsigned_abs() as u32)).map(Value::Bool))
         }
     )
 }
@@ -775,7 +775,7 @@ pub fn _vec_get(
         default => if ! Value::default()
         => {
             let vector = vector.borrow();
-            Ok(Some(vector.get(index.unsigned_abs() as usize).cloned().unwrap_or(default)))
+            Ok(Some(vector.get(index.unsigned_abs()).cloned().unwrap_or(default)))
         }
     )
 }
@@ -789,7 +789,7 @@ pub fn _vec_len(
         Value::Vector(vector) => if ! Value::Vector(Default::default())
         => {
             let vector = vector.borrow();
-            Ok(Some(Value::Int(vector.len() as i32)))
+            Ok(Some(Value::Int(vector.len() as isize)))
         }
     )
 }
@@ -819,7 +819,7 @@ pub fn _vec_insert(
         Value::Int(index) => if ! Value::Vector(Default::default()),
         value => if ! Value::default()
         => {
-            let index = index.unsigned_abs() as usize;
+            let index = index.unsigned_abs();
             vector.borrow_mut().insert(index, value);
             Ok(None)
         }
@@ -849,7 +849,7 @@ pub fn _vec_remove(
         Value::Vector(vector) => if ! Value::Vector(Default::default()),
         Value::Int(index) => if ! Value::Vector(Default::default())
         => {
-            let index = index.unsigned_abs() as usize;
+            let index = index.unsigned_abs();
             if vector.borrow().get(index).is_some() {
                 return Ok(Some(vector.borrow_mut().remove(0)))
             }
@@ -868,7 +868,7 @@ pub fn _vec_pos(
         value => if ! Value::default()
         => {
             let vector = vector.borrow();
-            Ok(vector.iter().position(|e| e == &value).map(|index| Value::Int(index as i32)))
+            Ok(vector.iter().position(|e| e == &value).map(|index| Value::Int(index as isize)))
         }
     )
 }
@@ -1029,7 +1029,7 @@ pub fn _math_cos(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1047,7 +1047,7 @@ pub fn _math_sin(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1065,7 +1065,7 @@ pub fn _math_tan(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1083,7 +1083,7 @@ pub fn _math_acos(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1101,7 +1101,7 @@ pub fn _math_asin(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1119,7 +1119,7 @@ pub fn _math_atan(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1137,7 +1137,7 @@ pub fn _math_cosh(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1155,7 +1155,7 @@ pub fn _math_sinh(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1173,7 +1173,7 @@ pub fn _math_tanh(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1191,7 +1191,7 @@ pub fn _math_acosh(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1209,7 +1209,7 @@ pub fn _math_asinh(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1227,7 +1227,7 @@ pub fn _math_atanh(
         value => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
@@ -1246,12 +1246,12 @@ pub fn _math_atan2(
         value2 => if ! Value::Float(Default::default())
         => {
             let value = match value {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
             let value2 = match value2 {
-                Value::Int(value) => value as f32,
+                Value::Int(value) => value as f64,
                 Value::Float(value) => value,
                 value => return Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             };
