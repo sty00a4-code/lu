@@ -173,6 +173,7 @@ pub fn std_env() -> HashMap<String, Value> {
     env.insert(
         "math".to_string(),
         make_module!("math":
+            "pi" = Value::Float(std::f32::consts::PI),
             "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
             "ceil" = Value::Function(FunctionKind::NativeFunction(_math_ceil)),
             "round" = Value::Function(FunctionKind::NativeFunction(_math_round)),

@@ -1,23 +1,21 @@
-function eval(ast) {
+function eval(ast, env) {
+    env = env | {}
     let handle = {
-        int = function(ast) {
+        int = function(ast, env) {
             return ok(ast.value)
         },
-        float = function(ast) {
+        float = function(ast, env) {
             return ok(value.value)
         },
-        ident = function(ast) {
-            return err({
-                msg = "cannot resolve identifier '" + ast.value + "'",
-                pos = ast.pos
-            })
+        ident = function(ast, env) {
+            return ok(env[ast.value])
         },
-        binary = function(ast) {
-            let res = eval(ast.left) if res.type == "error" { return res }
+        binary = function(ast, env) {
+            let res = eval(ast.left, env) if res.type == "error" { return res }
             let left = res.value
-            let res = eval(ast.right) if res.type == "error" { return res }
+            let res = eval(ast.right, env) if res.type == "error" { return res }
             let right = res.value
-            if type(left) != "int" & type(right) != "float" {
+            if (type(left) != "int" & type(left) != "float") | (type(right) != "int" & type(right) != "float") {
                 return err({
                     msg = "cannot perform binary operation on " + type(left) + " and " + type(right)
                 })
@@ -35,8 +33,38 @@ function eval(ast) {
                 msg = "invalid binary operator '" + ast.op + "'"
             })
         },
+        unary = function(ast, env) {
+            let res = eval(ast.right, env) if res.type == "error" { return res }
+            let right = res.value
+            if type(right) != "int" & type(right) != "float" {
+                return err({
+                    msg = "cannot perform unary operation on " + type(right)
+                })
+            }
+            if ast.op == "-" {
+                return ok(-right)
+            }
+            return err({
+                msg = "invalid unary operator '" + ast.op + "'"
+            })
+        },
+        call = function(ast, env) {
+            let res = eval(ast.head, env) if res.type == "error" { return res }
+            let head = res.value
+            let args = []
+            for arg in ast.args {
+                let res = eval(arg, env) if res.type == "error" { return res }
+                args:push(res.value)
+            }
+            if type(head) != "function" {
+                return err({
+                    msg = "cannot call " + type(head)
+                })
+            }
+            return head(args, env)
+        }
     }
-    return handle[ast.type](ast)
+    return handle[ast.type](ast, env)
 }
 
 return eval

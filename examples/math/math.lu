@@ -21,7 +21,21 @@ while true {
     }
     let ast = res.value
 
-    let res = eval(ast)
+    let res = eval(ast, {
+        pi = math.pi,
+        abs = function(args) {
+            return ok(math.abs(args[0] | 0))
+        },
+        sin = function(args) {
+            return ok(math.sin(args[0] | 0))
+        },
+        cos = function(args) {
+            return ok(math.cos(args[0] | 0))
+        },
+        tan = function(args) {
+            return ok(math.tan(args[0] | 0))
+        },
+    })
     if res.type == "error" {
         print(res.error.msg)
         continue

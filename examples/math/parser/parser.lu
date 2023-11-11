@@ -2,25 +2,32 @@ binary_layers = [
     ["+", "-"],
     ["*", "/"]
 ]
+unary_layers = [
+    ["-"]
+]
 function display(ast, indent) {
     indent = indent | 0
-    let s = "{\n"
-    let prefix = "    " * indent
-    let sub_prefix = "    " * (indent + 1)
-    
-    for key in keys(ast) {
-        if key == "pos" { continue }
-        let value = ast[key]
-        s += sub_prefix + key + " = "
-        if type(value) == "object" {
-            s += display(value, indent + 1)
-        } else {
-            s += tostr(value)
+    if type(ast) == "object" {
+        let s = "{\n"
+        let prefix = "    " * indent
+        let sub_prefix = "    " * (indent + 1)
+        for key in keys(ast) {
+            if key == "pos" { continue }
+            let value = ast[key]
+            s += sub_prefix + key + " = " + display(value, indent + 1) + "\n"
         }
-        s += "\n"
+        return s + prefix + "}"
+    } else if type(ast) == "vector" {
+        let s = "[\n"
+        let prefix = "    " * indent
+        let sub_prefix = "    " * (indent + 1)
+        for value in ast {
+            s += display(value, indent + 1) + "\n"
+        }
+        return s + prefix + "]"
+    } else {
+        return tostr(ast)
     }
-
-    return s + prefix + "}"
 }
 
 let Parser = function(tokens) {
@@ -39,12 +46,15 @@ let Parser = function(tokens) {
             return token
         },
         parse = function(self) {
+            return self:expr()
+        },
+        expr = function(self) {
             return self:binary(0)
         },
         binary = function(self, layer) {
             let ops = binary_layers[layer]
             if !ops {
-                return self:atom()
+                return self:unary(0)
             }
             let res = self:binary(layer + 1) if res.type == "error" { return res }
             let left = res.value
@@ -67,6 +77,64 @@ let Parser = function(tokens) {
             }
             return ok(left)
         },
+        unary = function(self, layer) {
+            let ops = unary_layers[layer]
+            if !ops {
+                return self:call()
+            }
+            if self:get() {
+                if self:get().kind == "symbol" {
+                    if ops:contains(self:get().value) {
+                        let op = self:token().value
+                        let res = self:unary(layer) if res.type == "error" { return res }
+                        let right = res.value
+                        return ok({
+                            type = "unary",
+                            op = op,
+                            right = right
+                        })
+                    }
+                }
+            }
+            return self:unary(layer + 1)
+        },
+        call = function(self) {
+            let res = self:atom() if res.type == "error" { return res }
+            let head = res.value
+            if self:get() {
+                if self:get().value == "(" {
+                    self:token()
+                    let args = []
+                    while self:get() {
+                        if self:get().value == ")" {
+                            break
+                        }
+                        let res = self:expr() if res.type == "error" { return res }
+                        let arg = res.value
+                        args:push(arg)
+                        if self:get().value == ")" {
+                            break
+                        }
+                        if self:token().value != "," {
+                            return err({
+                                msg = "expected ',' or ')'"
+                            })
+                        }
+                    }
+                    if self:token().value != ")" {
+                        return err({
+                            msg = "expected ')'",
+                        })
+                    }
+                    return ok({
+                        type = "call",
+                        head = head,
+                        args = args
+                    })
+                } 
+            }
+            return ok(head)
+        },
         atom = function(self) {
             let token = self:token()
             if !token {
@@ -81,7 +149,7 @@ let Parser = function(tokens) {
                     pos = token.pos,
                 })
             } else if token.value == "(" {
-                let res = self:binary(0)
+                let res = self:expr()
                 if res.type == "error" {
                     return res
                 }
