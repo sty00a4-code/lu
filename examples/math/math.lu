@@ -6,22 +6,18 @@ while true {
     let text = input("> ")
 
     let l = lexer.Lexer(text)
-    let res = l:lex()
-    if !res {
-        print(res.err.msg)
+    let tokens = l:lex()? (err) {
+        print(err.msg)
         continue
     }
-    let tokens = res.ok
 
     let p = parser.Parser(tokens)
-    let res = p:parse()
-    if !res {
-        print(res.err.msg)
+    let ast = p:parse()? (err) {
+        print(err.msg)
         continue
     }
-    let ast = res.ok
 
-    let res = eval(ast, {
+    let value = eval(ast, {
         pi = math.pi,
         abs = function(args) {
             return ok(math.abs(args[0] | 0))
@@ -35,10 +31,9 @@ while true {
         tan = function(args) {
             return ok(math.tan(args[0] | 0))
         },
-    })
-    if !res {
-        print(res.err.msg)
+    })? (err) {
+        print(err.msg)
         continue
     }
-    print(res.ok)
+    print(value)
 }

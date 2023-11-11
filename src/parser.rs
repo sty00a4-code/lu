@@ -124,6 +124,10 @@ pub enum Expression {
         head: Box<Located<Self>>,
         index: Box<Located<Expression>>,
     },
+    Catch {
+        expr: Box<Located<Self>>,
+        catch: Option<(Located<Ident>, Located<Block>)>
+    }
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Atom {
@@ -523,6 +527,24 @@ impl Parsable<Token> for Statement {
     }
 }
 impl Expression {
+    pub fn catch(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
+        let mut expr = Self::binary(parser, 0)?;
+        if let Some(Located { value: Token::Questionmark, pos: _ }) = parser.token_ref() {
+            let Located { value: _, pos: token_pos } = expect!(parser);
+            let mut pos = expr.pos.clone();
+            pos.extend(&token_pos);
+            let mut catch = None;
+            if let Some(Located { value: Token::LParan, pos: _ }) = parser.token_ref() {
+                parser.token();
+                let ident = Ident::parse(parser)?;
+                expect_token!(parser: RParan);
+                let body = Block::parse(parser)?;
+                catch = Some((ident, body));
+            }
+            expr = Located::new(Self::Catch { expr: Box::new(expr), catch }, pos)
+        }
+        Ok(expr)
+    }
     pub fn binary(
         parser: &mut Parser<Token>,
         layer: usize,
@@ -732,7 +754,7 @@ impl Expression {
 impl Parsable<Token> for Expression {
     type Error = ParserError;
     fn parse(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<Self::Error>> {
-        Self::binary(parser, 0)
+        Self::catch(parser)
     }
 }
 impl Parsable<Token> for Atom {
@@ -1534,6 +1556,29 @@ impl Compilable for Located<Expression> {
                     },
                     pos,
                 );
+                Ok(Source::Register(dst))
+            }
+            Expression::Catch { expr, catch } => {
+                let expr_src = expr.compile(compiler)?;
+                if let Some((Located { value: Ident(error_ident), pos: error_ident_pos }, body)) = catch {
+                    let check_addr = compiler.addr();
+                    compiler.write(ByteCode::None, Positon::default());
+                    compiler.push_scope();
+                    let error_reg = compiler.new_local(error_ident);
+                    let error_addr = compiler.new_const(Value::String("err".to_string()));
+                    compiler.write(ByteCode::Field { dst: Location::Register(error_reg), head: expr_src, field: Source::Const(error_addr) }, error_ident_pos);
+                    body.compile(compiler)?;
+                    compiler.pop_scope();
+                    let addr = compiler.addr();
+                    compiler.overwrite(check_addr, ByteCode::JumpIf { cond: expr_src, addr, not: false }, pos.clone())
+                } else {
+                    let addr = compiler.addr() + 2;
+                    compiler.write(ByteCode::JumpIf { cond: expr_src, addr, not: false }, pos.clone());
+                    compiler.write(ByteCode::Return { src: expr_src }, pos.clone());
+                }
+                let ok_addr = compiler.new_const(Value::String("ok".to_string()));
+                let dst = compiler.new_register();
+                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: expr_src, field: Source::Const(ok_addr) }, pos);
                 Ok(Source::Register(dst))
             }
         }

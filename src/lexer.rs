@@ -24,6 +24,7 @@ pub enum Token {
     Dot,
     Colon,
     Comma,
+    Questionmark,
 
     Plus,
     Minus,
@@ -118,6 +119,7 @@ impl Display for Token {
             Token::Dot => write!(f, "."),
             Token::Colon => write!(f, ":"),
             Token::Comma => write!(f, ","),
+            Token::Questionmark => write!(f, "?"),
             Token::Plus => write!(f, "+"),
             Token::Minus => write!(f, "-"),
             Token::Star => write!(f, "*"),
@@ -186,6 +188,7 @@ impl Lexable for Token {
             '.' => Ok(Some(Located::new(Token::Dot, pos))),
             ':' => Ok(Some(Located::new(Token::Colon, pos))),
             ',' => Ok(Some(Located::new(Token::Comma, pos))),
+            '?' => Ok(Some(Located::new(Token::Questionmark, pos))),
             '+' => {
                 if lexer.get() == Some('=') {
                     pos.extend(&lexer.pos());
