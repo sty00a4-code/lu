@@ -30,7 +30,7 @@ function display(ast, indent) {
     }
 }
 
-let Parser = function(tokens) {
+let parser = function(tokens) {
     return setmeta({
         tokens = tokens,
         idx = 0,
@@ -168,6 +168,6 @@ let Parser = function(tokens) {
 }
 
 return {
-    Parser = Parser,
+    parser = parser,
     display = display
 }

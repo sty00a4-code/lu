@@ -5,13 +5,13 @@ let eval = require "eval.lu"
 while true {
     let text = input("> ")
 
-    let l = lexer.Lexer(text)
+    let l = lexer.lexer(text)
     let tokens = l:lex()? (err) {
         print(err.msg)
         continue
     }
 
-    let p = parser.Parser(tokens)
+    let p = parser.parser(tokens)
     let ast = p:parse()? (err) {
         print(err.msg)
         continue

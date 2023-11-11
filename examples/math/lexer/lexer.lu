@@ -1,7 +1,7 @@
 tokens = require "tokens.lu"
 symbols = ["+", "-", "*", "/", "(", ")"]
 
-let Lexer = function(text) {
+let lexer = function(text) {
     return setmeta({
         text = text,
         idx = 0,
@@ -11,7 +11,7 @@ let Lexer = function(text) {
             return self.text[self.idx]
         },
         pos = function(self) {
-            return tokens.Position(tokens.Range(self.ln, self.ln), tokens.Range(self.col, self.col + 1))
+            return tokens.position(tokens.range(self.ln, self.ln), tokens.range(self.col, self.col + 1))
         },
         advance = function(self) {
             if self:get() == "\n" {
@@ -33,7 +33,7 @@ let Lexer = function(text) {
             let pos = self:pos()
             self:advance()
             if c:is_punctuation() & symbols:contains(c) {
-                return ok(tokens.Token("symbol", c, pos))
+                return ok(tokens.token("symbol", c, pos))
             } else if c:is_digit() {
                 let number = c
                 while self:get() {
@@ -56,9 +56,9 @@ let Lexer = function(text) {
                         self:advance()
                         pos:extend(self:pos())
                     }
-                    return ok(tokens.Token("float", tofloat(number), pos))
+                    return ok(tokens.token("float", tofloat(number), pos))
                 } else {
-                    return ok(tokens.Token("int", toint(number), pos))
+                    return ok(tokens.token("int", toint(number), pos))
                 }
             } else if c:is_alphanumeric() | c == "_" {
                 let ident = c
@@ -70,7 +70,7 @@ let Lexer = function(text) {
                     self:advance()
                     pos:extend(self:pos())
                 }
-                return ok(tokens.Token("ident", ident, pos))
+                return ok(tokens.token("ident", ident, pos))
             }
             return err({
                 msg = "bad character: '" + c + "'",
@@ -92,5 +92,5 @@ let Lexer = function(text) {
 
 return {
     tokens = tokens,
-    Lexer = Lexer,
+    lexer = lexer,
 }
