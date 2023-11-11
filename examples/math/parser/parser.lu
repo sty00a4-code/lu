@@ -56,8 +56,8 @@ let Parser = function(tokens) {
             if !ops {
                 return self:unary(0)
             }
-            let res = self:binary(layer + 1) if res.type == "error" { return res }
-            let left = res.value
+            let res = self:binary(layer + 1) if !res { return res }
+            let left = res.ok
             while self:get() {
                 if self:get().kind != "symbol" {
                     break
@@ -66,8 +66,8 @@ let Parser = function(tokens) {
                     break
                 }
                 let op = self:token().value
-                let res = self:binary(layer + 1) if res.type == "error" { return res }
-                let right = res.value
+                let res = self:binary(layer + 1) if !res { return res }
+                let right = res.ok
                 left = {
                     type = "binary",
                     op = op,
@@ -86,8 +86,8 @@ let Parser = function(tokens) {
                 if self:get().kind == "symbol" {
                     if ops:contains(self:get().value) {
                         let op = self:token().value
-                        let res = self:unary(layer) if res.type == "error" { return res }
-                        let right = res.value
+                        let res = self:unary(layer) if !res { return res }
+                        let right = res.ok
                         return ok({
                             type = "unary",
                             op = op,
@@ -99,8 +99,8 @@ let Parser = function(tokens) {
             return self:unary(layer + 1)
         },
         call = function(self) {
-            let res = self:atom() if res.type == "error" { return res }
-            let head = res.value
+            let res = self:atom() if !res { return res }
+            let head = res.ok
             if self:get() {
                 if self:get().value == "(" {
                     self:token()
@@ -109,8 +109,8 @@ let Parser = function(tokens) {
                         if self:get().value == ")" {
                             break
                         }
-                        let res = self:expr() if res.type == "error" { return res }
-                        let arg = res.value
+                        let res = self:expr() if !res { return res }
+                        let arg = res.ok
                         args:push(arg)
                         if self:get().value == ")" {
                             break
@@ -153,7 +153,7 @@ let Parser = function(tokens) {
                 if res.type == "error" {
                     return res
                 }
-                let expr = res.value
+                let expr = res.ok
 
                 let token = self:token() | {}
                 if token.value != ")" {

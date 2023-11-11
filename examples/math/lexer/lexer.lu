@@ -80,11 +80,8 @@ let Lexer = function(text) {
         lex = function(self) {
             let tokens = []
             while self:get() {
-                let res = self:next()
-                if res.type == "error" {
-                    return res
-                }
-                tokens:push(res.value)
+                let res = self:next() if !res { return res }
+                tokens:push(res.ok)
             }
             return ok(tokens)
         }

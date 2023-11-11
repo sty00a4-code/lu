@@ -37,7 +37,6 @@ fn main() {
             exit(1);
         }
     };
-    // dbg!(&ast);
     let main_closure = match generate_ast(text) {
         Ok(ast) => match compile_ast(ast, &path) {
             Ok(closure) => closure,

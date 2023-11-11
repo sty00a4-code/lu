@@ -425,6 +425,7 @@ impl Parsable<Token> for Statement {
                     parser.token();
                     let expr = Expression::parse(parser)?;
                     pos.extend(&expr.pos);
+                    exprs.push(expr);
                     while let Some(Located { value: Token::Comma, pos: _ }) = parser.token_ref() {
                         parser.token();
                         exprs.push(Expression::parse(parser)?);

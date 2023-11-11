@@ -24,6 +24,8 @@ pub enum Value {
     Object(Rc<RefCell<Object>>),
     Function(FunctionKind),
 
+    Result(Result<Box<Self>, Box<Self>>),
+
     ForeignObject(Rc<RefCell<Box<dyn ForeignData>>>)
 }
 
@@ -717,6 +719,24 @@ impl Interpreter {
                             return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
                         }
                     },
+                    Value::Result(result) => match field {
+                        Value::String(field) => match field.as_str() {
+                            "ok" => result.as_ref()
+                                .ok()
+                                .map(|v| v.as_ref())
+                                .cloned()
+                                .unwrap_or_default(),
+                            "err" => result.as_ref()
+                                .err()
+                                .map(|v| v.as_ref())
+                                .cloned()
+                                .unwrap_or_default(),
+                            _ => return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, Value::String(field)), pos), self.current_path().expect("no current path found").clone()))
+                        }
+                        field => {
+                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                        }
+                    },
                     Value::Vector(vector) => match field {
                         Value::Int(index) => vector
                             .borrow()
@@ -757,6 +777,7 @@ impl Value {
             Value::Vector(_) => "vector",
             Value::Object(_) | Value::ForeignObject(_) => "object",
             Value::Function(_) => "function",
+            Value::Result(_) => "result",
         }
     }
 }
@@ -773,6 +794,8 @@ impl PartialEq for Value {
             (Self::Vector(left), Self::Vector(right)) => std::ptr::eq(left, right),
             (Self::Object(left), Self::Object(right)) => std::ptr::eq(left, right),
             (Self::Function(left), Self::Function(right)) => std::ptr::eq(left, right),
+            (Self::Result(left), Self::Result(right)) => left == right,
+            (Self::ForeignObject(left), Self::ForeignObject(right)) => std::ptr::eq(left, right),
             _ => false,
         }
     }
@@ -805,6 +828,7 @@ impl Display for Value {
                 "{}",
                 object.borrow(),
             ),
+            Value::Result(result) => write!(f, "{:?}", result),
         }
     }
 }
@@ -833,6 +857,10 @@ impl Debug for Value {
                 "{}",
                 object.borrow(),
             ),
+            Value::Result(result) => write!(f, "{}", match result {
+                Ok(value) => format!("ok({value})"),
+                Err(value) => format!("err({value})"),
+            }),
         }
     }
 }
@@ -872,6 +900,7 @@ impl From<&Value> for bool {
             Value::Vector(vector) => !vector.borrow().is_empty(),
             Value::Object(_) => true,
             Value::Function(_) => true,
+            Value::Result(result) => result.is_ok(),
             Value::ForeignObject(_) => true,
         }
     }

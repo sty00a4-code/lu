@@ -11,10 +11,10 @@ function eval(ast, env) {
             return ok(env[ast.value])
         },
         binary = function(ast, env) {
-            let res = eval(ast.left, env) if res.type == "error" { return res }
-            let left = res.value
-            let res = eval(ast.right, env) if res.type == "error" { return res }
-            let right = res.value
+            let res = eval(ast.left, env) if !res { return res }
+            let left = res.ok
+            let res = eval(ast.right, env) if !res { return res }
+            let right = res.ok
             if (type(left) != "int" & type(left) != "float") | (type(right) != "int" & type(right) != "float") {
                 return err({
                     msg = "cannot perform binary operation on " + type(left) + " and " + type(right)
@@ -34,8 +34,8 @@ function eval(ast, env) {
             })
         },
         unary = function(ast, env) {
-            let res = eval(ast.right, env) if res.type == "error" { return res }
-            let right = res.value
+            let res = eval(ast.right, env) if !res { return res }
+            let right = res.ok
             if type(right) != "int" & type(right) != "float" {
                 return err({
                     msg = "cannot perform unary operation on " + type(right)
@@ -49,12 +49,12 @@ function eval(ast, env) {
             })
         },
         call = function(ast, env) {
-            let res = eval(ast.head, env) if res.type == "error" { return res }
-            let head = res.value
+            let res = eval(ast.head, env) if !res { return res }
+            let head = res.ok
             let args = []
             for arg in ast.args {
-                let res = eval(arg, env) if res.type == "error" { return res }
-                args:push(res.value)
+                let res = eval(arg, env) if !res { return res }
+                args:push(res.ok)
             }
             if type(head) != "function" {
                 return err({

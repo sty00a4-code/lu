@@ -84,14 +84,6 @@ pub fn std_env() -> HashMap<String, Value> {
         "err".into(),
         Value::Function(FunctionKind::NativeFunction(_err)),
     );
-    env.insert(
-        "some".into(),
-        Value::Function(FunctionKind::NativeFunction(_some)),
-    );
-    env.insert(
-        "none".into(),
-        Value::Function(FunctionKind::NativeFunction(_none)),
-    );
 
     env.insert(
         "type".into(),
@@ -341,7 +333,7 @@ pub fn _ok(
     collect_args!(args pos path:
         value => if ! Value::default()
         => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(Ok::<Value, Value>(value).into())))))
+            Ok(Some(Value::Result(Ok(Box::new(value)))))
         }
     )
 }
@@ -354,32 +346,7 @@ pub fn _err(
     collect_args!(args pos path:
         value => if ! Value::default()
         => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(Err::<Value, Value>(value).into())))))
-        }
-    )
-}
-pub fn _some(
-    _: &mut Interpreter,
-    args: Vec<Value>,
-    pos: &Positon,
-    path: &str,
-) -> Result<Option<Value>, PathLocated<RunTimeError>> {
-    collect_args!(args pos path:
-        value => if ! Value::default()
-        => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(Some(value).into())))))
-        }
-    )
-}
-pub fn _none(
-    _: &mut Interpreter,
-    _: Vec<Value>,
-    _: &Positon,
-    _: &str,
-) -> Result<Option<Value>, PathLocated<RunTimeError>> {
-    collect_args!(args pos path:
-        => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(None::<Value>.into())))))
+            Ok(Some(Value::Result(Err(Box::new(value)))))
         }
     )
 }
