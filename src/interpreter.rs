@@ -54,7 +54,6 @@ impl Object {
     }
 }
 pub trait ForeignData: Display {
-    fn name(&self) -> String;
     fn get(&self, key: &str) -> Option<Value>;
     fn set(&mut self, key: String, value: Value);
 }
