@@ -420,13 +420,15 @@ impl Parsable<Token> for Statement {
                     parser.token();
                     idents.push(Ident::parse(parser)?);
                 }
-                expect_token!(parser: Equal);
-                let expr = Expression::parse(parser)?;
-                pos.extend(&expr.pos);
-                let mut exprs = vec![expr];
-                while let Some(Located { value: Token::Comma, pos: _ }) = parser.token_ref() {
+                let mut exprs = vec![];
+                if let Some(Located { value: Token::Equal, pos: _ }) = parser.token_ref() {
                     parser.token();
-                    exprs.push(Expression::parse(parser)?);
+                    let expr = Expression::parse(parser)?;
+                    pos.extend(&expr.pos);
+                    while let Some(Located { value: Token::Comma, pos: _ }) = parser.token_ref() {
+                        parser.token();
+                        exprs.push(Expression::parse(parser)?);
+                    }
                 }
                 Ok(Located::new(Self::Let { idents, exprs }, pos))
             }
