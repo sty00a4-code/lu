@@ -1,10 +1,12 @@
 use oneparse::position::{Located, Positon};
 use std::{
     cell::{Ref, RefCell},
+    cmp::Ordering,
     collections::HashMap,
     error::Error,
     fmt::{Debug, Display},
-    rc::Rc, cmp::Ordering,
+    hash::Hash,
+    rc::Rc,
 };
 
 use crate::{
@@ -26,7 +28,7 @@ pub enum Value {
 
     Result(Result<Box<Self>, Box<Self>>),
 
-    ForeignObject(Rc<RefCell<Box<dyn ForeignData>>>)
+    ForeignObject(Rc<RefCell<Box<dyn ForeignData>>>),
 }
 
 #[derive(Clone)]
@@ -36,8 +38,12 @@ pub enum FunctionKind {
 }
 pub type FilePath = String;
 pub type FilePathRef<'a> = &'a str;
-pub type NativeFunction =
-    fn(&mut Interpreter, Vec<Value>, &Positon, FilePathRef) -> Result<Option<Value>, PathLocated<RunTimeError>>;
+pub type NativeFunction = fn(
+    &mut Interpreter,
+    Vec<Value>,
+    &Positon,
+    FilePathRef,
+) -> Result<Option<Value>, PathLocated<RunTimeError>>;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Object {
     pub map: HashMap<String, Value>,
@@ -94,9 +100,8 @@ pub struct Traced<E> {
 }
 pub struct PathLocated<T> {
     pub located: Located<T>,
-    pub path: FilePath
+    pub path: FilePath,
 }
-
 
 impl<T> PathLocated<T> {
     pub fn new(located: Located<T>, path: FilePath) -> Self {
@@ -164,21 +169,15 @@ impl Interpreter {
     }
     pub fn current_instr(&self) -> Option<Located<ByteCode>> {
         let closure = self.current_closure()?;
-        let ip = self
-            .current_call_frame()?
-            .ip;
+        let ip = self.current_call_frame()?.ip;
         closure.code.get(ip).cloned()
     }
     pub fn register(&self, register: usize) -> Option<&Value> {
-        let stack_base = self
-            .current_call_frame()?
-            .stack_base;
+        let stack_base = self.current_call_frame()?.stack_base;
         self.stack.get(stack_base + register)
     }
     pub fn register_mut(&mut self, register: usize) -> Option<&mut Value> {
-        let stack_base = self
-            .current_call_frame()?
-            .stack_base;
+        let stack_base = self.current_call_frame()?.stack_base;
         self.stack.get_mut(stack_base + register)
     }
     pub fn constant(&self, addr: usize) -> Option<Value> {
@@ -218,8 +217,15 @@ impl Interpreter {
         }
     }
 
-    pub fn create_trace(&self, err: PathLocated<RunTimeError>, offset: usize) -> Traced<PathLocated<RunTimeError>> {
-        let PathLocated { located: Located { value: err, pos }, path } = err;
+    pub fn create_trace(
+        &self,
+        err: PathLocated<RunTimeError>,
+        offset: usize,
+    ) -> Traced<PathLocated<RunTimeError>> {
+        let PathLocated {
+            located: Located { value: err, pos },
+            path,
+        } = err;
         let mut trace = vec![];
         trace.push((path.clone(), pos.clone()));
         for i in 0..(self.call_stack.len() - offset) {
@@ -235,7 +241,10 @@ impl Interpreter {
                     .unwrap_or_default(),
             ));
         }
-        Traced { trace, err: PathLocated::new(Located::new(err, pos), path.clone()) }
+        Traced {
+            trace,
+            err: PathLocated::new(Located::new(err, pos), path.clone()),
+        }
     }
     pub fn run(
         &mut self,
@@ -244,7 +253,10 @@ impl Interpreter {
         let call_offset = self.call_stack.len();
         self.enter_call(closure, vec![], Some(Location::Global(0)));
         loop {
-            if self.step().map_err(|err| self.create_trace(err, call_offset))? {
+            if self
+                .step()
+                .map_err(|err| self.create_trace(err, call_offset))?
+            {
                 while self.call_stack.len() > call_offset {
                     self.call_stack.pop();
                 }
@@ -323,7 +335,11 @@ impl Interpreter {
                             self.enter_call(closure, args, dst);
                         }
                         FunctionKind::NativeFunction(func) => {
-                            let path = self.current_call_frame().expect("no call frame on call stack").path.clone();
+                            let path = self
+                                .current_call_frame()
+                                .expect("no call frame on call stack")
+                                .path
+                                .clone();
                             let value = func(self, args, &pos, &path)?;
                             if let Some(dst) = dst {
                                 let register = self.location(dst).expect("location not found");
@@ -331,7 +347,12 @@ impl Interpreter {
                             }
                         }
                     },
-                    value => return Err(PathLocated::new(Located::new(RunTimeError::NotCallable(value), pos), self.current_path().expect("no current path found").clone())),
+                    value => {
+                        return Err(PathLocated::new(
+                            Located::new(RunTimeError::NotCallable(value), pos),
+                            self.current_path().expect("no current path found").clone(),
+                        ))
+                    }
                 }
             }
             ByteCode::SelfCall {
@@ -352,7 +373,10 @@ impl Interpreter {
                             .cloned()
                             .unwrap_or_default(),
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     Value::Vector(_) => match field {
@@ -360,14 +384,20 @@ impl Interpreter {
                             if let Some(Value::Object(vec_module)) = self.globals.get("vec") {
                                 vec_module.borrow().get(&field).unwrap_or_default()
                             } else {
-                                return Err(PathLocated::new(Located::new(
-                                    RunTimeError::InvalidField(head, Value::String(field)),
-                                    pos,
-                                ), self.current_path().expect("no current path found").clone()));
+                                return Err(PathLocated::new(
+                                    Located::new(
+                                        RunTimeError::InvalidField(head, Value::String(field)),
+                                        pos,
+                                    ),
+                                    self.current_path().expect("no current path found").clone(),
+                                ));
                             }
                         }
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     Value::String(_) => match field {
@@ -375,17 +405,28 @@ impl Interpreter {
                             if let Some(Value::Object(str_module)) = self.globals.get("str") {
                                 str_module.borrow().get(&field).unwrap_or_default()
                             } else {
-                                return Err(PathLocated::new(Located::new(
-                                    RunTimeError::InvalidField(head, Value::String(field)),
-                                    pos,
-                                ), self.current_path().expect("no current path found").clone()));
+                                return Err(PathLocated::new(
+                                    Located::new(
+                                        RunTimeError::InvalidField(head, Value::String(field)),
+                                        pos,
+                                    ),
+                                    self.current_path().expect("no current path found").clone(),
+                                ));
                             }
                         }
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
-                    _ => return Err(PathLocated::new(Located::new(RunTimeError::InvalidFieldHead(head), pos), self.current_path().expect("no current path found").clone())),
+                    _ => {
+                        return Err(PathLocated::new(
+                            Located::new(RunTimeError::InvalidFieldHead(head), pos),
+                            self.current_path().expect("no current path found").clone(),
+                        ))
+                    }
                 };
                 let mut args = vec![head.clone()];
                 for addr in start..start + amount {
@@ -401,7 +442,11 @@ impl Interpreter {
                             self.enter_call(closure, args, dst);
                         }
                         FunctionKind::NativeFunction(func) => {
-                            let path = self.current_call_frame().expect("no call frame on call stack").path.clone();
+                            let path = self
+                                .current_call_frame()
+                                .expect("no call frame on call stack")
+                                .path
+                                .clone();
                             let value = func(self, args, &pos, &path)?;
                             if let Some(dst) = dst {
                                 let register = self.location(dst).expect("location not found");
@@ -409,13 +454,18 @@ impl Interpreter {
                             }
                         }
                     },
-                    value => return Err(PathLocated::new(Located::new(RunTimeError::NotCallable(value), pos), self.current_path().expect("no current path found").clone())),
+                    value => {
+                        return Err(PathLocated::new(
+                            Located::new(RunTimeError::NotCallable(value), pos),
+                            self.current_path().expect("no current path found").clone(),
+                        ))
+                    }
                 }
             }
             ByteCode::Return { src } => {
                 let return_value = self.source(src).unwrap_or_default();
                 self.return_call(return_value);
-                return Ok(self.call_stack.is_empty())
+                return Ok(self.call_stack.is_empty());
             }
 
             ByteCode::Move { dst, src } => {
@@ -451,20 +501,32 @@ impl Interpreter {
                         if let Value::String(field) = field {
                             object.borrow_mut().map.insert(field.clone(), value);
                         } else {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::InvalidField(Value::Object(object.clone()), field),
-                                pos,
-                            ), self.current_path().expect("no current path found").clone()));
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::InvalidField(
+                                        Value::Object(object.clone()),
+                                        field,
+                                    ),
+                                    pos,
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ));
                         }
                     }
                     Value::ForeignObject(object) => {
                         if let Value::String(field) = field {
                             object.borrow_mut().set(field.clone(), value);
                         } else {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::InvalidField(Value::ForeignObject(object.clone()), field),
-                                pos,
-                            ), self.current_path().expect("no current path found").clone()));
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::InvalidField(
+                                        Value::ForeignObject(object.clone()),
+                                        field,
+                                    ),
+                                    pos,
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ));
                         }
                     }
                     Value::Vector(vector) => {
@@ -475,17 +537,23 @@ impl Interpreter {
                                 *old_value = value;
                             }
                         } else {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::InvalidField(Value::Vector(vector.clone()), field),
-                                pos,
-                            ), self.current_path().expect("no current path found").clone()));
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::InvalidField(
+                                        Value::Vector(vector.clone()),
+                                        field,
+                                    ),
+                                    pos,
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ));
                         }
                     }
                     value => {
-                        return Err(PathLocated::new(Located::new(
-                            RunTimeError::InvalidFieldHead(value.clone()),
-                            pos,
-                        ), self.current_path().expect("no current path found").clone()))
+                        return Err(PathLocated::new(
+                            Located::new(RunTimeError::InvalidFieldHead(value.clone()), pos),
+                            self.current_path().expect("no current path found").clone(),
+                        ))
                     }
                 }
             }
@@ -524,10 +592,10 @@ impl Interpreter {
                         }
                         (Value::Float(left), Value::Int(right)) => Value::Bool(left < right as f64),
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::GT => match (left, right) {
@@ -536,10 +604,10 @@ impl Interpreter {
                         (Value::Int(left), Value::Float(right)) => Value::Bool(left as f64 > right),
                         (Value::Float(left), Value::Int(right)) => Value::Bool(left > right as f64),
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::LE => match (left, right) {
@@ -552,10 +620,10 @@ impl Interpreter {
                             Value::Bool(left <= right as f64)
                         }
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::GE => match (left, right) {
@@ -568,10 +636,10 @@ impl Interpreter {
                             Value::Bool(left >= right as f64)
                         }
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::Add => match (left, right) {
@@ -585,10 +653,10 @@ impl Interpreter {
                         }
                         (Value::String(left), Value::String(right)) => Value::String(left + &right),
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::Sub => match (left, right) {
@@ -601,10 +669,10 @@ impl Interpreter {
                             Value::Float(left - right as f64)
                         }
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::Div => match (left, right) {
@@ -619,10 +687,10 @@ impl Interpreter {
                             Value::Float(left / right as f64)
                         }
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::Mul => match (left, right) {
@@ -638,10 +706,10 @@ impl Interpreter {
                             Value::String(left.repeat(right.unsigned_abs()))
                         }
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::Mod => match (left, right) {
@@ -654,10 +722,10 @@ impl Interpreter {
                             Value::Float(left % right as f64)
                         }
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     BinaryOperator::Pow => match (left, right) {
@@ -672,10 +740,10 @@ impl Interpreter {
                             Value::Float(left.powf(right as f64))
                         }
                         (left, right) => {
-                            return Err(PathLocated::new(Located::new(
-                                RunTimeError::Binary(op, left, right),
-                                pos.clone(),
-                            ), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Binary(op, left, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                 };
@@ -688,7 +756,10 @@ impl Interpreter {
                         Value::Int(right) => Value::Int(-right),
                         Value::Float(right) => Value::Float(-right),
                         right => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::Unary(op, right), pos.clone()), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::Unary(op, right), pos.clone()),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     UnaryOperator::Not => Value::Bool(!bool::from(&right)),
@@ -707,34 +778,52 @@ impl Interpreter {
                             .cloned()
                             .unwrap_or_default(),
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     Value::ForeignObject(object) => match field {
-                        Value::String(field) => object
-                            .borrow()
-                            .get(field.as_str())
-                            .unwrap_or_default(),
+                        Value::String(field) => {
+                            object.borrow().get(field.as_str()).unwrap_or_default()
+                        }
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     Value::Result(result) => match field {
                         Value::String(field) => match field.as_str() {
-                            "ok" => result.as_ref()
+                            "ok" => result
+                                .as_ref()
                                 .ok()
                                 .map(|v| v.as_ref())
                                 .cloned()
                                 .unwrap_or_default(),
-                            "err" => result.as_ref()
+                            "err" => result
+                                .as_ref()
                                 .err()
                                 .map(|v| v.as_ref())
                                 .cloned()
                                 .unwrap_or_default(),
-                            _ => return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, Value::String(field)), pos), self.current_path().expect("no current path found").clone()))
-                        }
+                            _ => {
+                                return Err(PathLocated::new(
+                                    Located::new(
+                                        RunTimeError::InvalidField(head, Value::String(field)),
+                                        pos,
+                                    ),
+                                    self.current_path().expect("no current path found").clone(),
+                                ))
+                            }
+                        },
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     Value::Vector(vector) => match field {
@@ -744,7 +833,10 @@ impl Interpreter {
                             .cloned()
                             .unwrap_or_default(),
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
                     Value::String(string) => match field {
@@ -755,10 +847,18 @@ impl Interpreter {
                             .map(|c| Value::String(String::from(*c)))
                             .unwrap_or_default(),
                         field => {
-                            return Err(PathLocated::new(Located::new(RunTimeError::InvalidField(head, field), pos), self.current_path().expect("no current path found").clone()))
+                            return Err(PathLocated::new(
+                                Located::new(RunTimeError::InvalidField(head, field), pos),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
                         }
                     },
-                    _ => return Err(PathLocated::new(Located::new(RunTimeError::InvalidFieldHead(head), pos), self.current_path().expect("no current path found").clone())),
+                    _ => {
+                        return Err(PathLocated::new(
+                            Located::new(RunTimeError::InvalidFieldHead(head), pos),
+                            self.current_path().expect("no current path found").clone(),
+                        ))
+                    }
                 };
             }
         }
@@ -800,9 +900,7 @@ impl PartialEq for Value {
         }
     }
 }
-impl Eq for Value {
-
-}
+impl Eq for Value {}
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -823,11 +921,7 @@ impl Display for Value {
                 object.as_ptr()
             ),
             Value::Function(kind) => write!(f, "function:{kind}"),
-            Value::ForeignObject(object) => write!(
-                f,
-                "{}",
-                object.borrow(),
-            ),
+            Value::ForeignObject(object) => write!(f, "{}", object.borrow(),),
             Value::Result(result) => write!(f, "{:?}", result),
         }
     }
@@ -852,15 +946,15 @@ impl Debug for Value {
                 object.as_ptr()
             ),
             Value::Function(kind) => write!(f, "function:{kind}"),
-            Value::ForeignObject(object) => write!(
+            Value::ForeignObject(object) => write!(f, "{}", object.borrow(),),
+            Value::Result(result) => write!(
                 f,
                 "{}",
-                object.borrow(),
+                match result {
+                    Ok(value) => format!("ok({value})"),
+                    Err(value) => format!("err({value})"),
+                }
             ),
-            Value::Result(result) => write!(f, "{}", match result {
-                Ok(value) => format!("ok({value})"),
-                Err(value) => format!("err({value})"),
-            }),
         }
     }
 }
@@ -875,7 +969,9 @@ impl Display for FunctionKind {
     }
 }
 impl PartialOrd for Value {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 impl Ord for Value {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -884,7 +980,58 @@ impl Ord for Value {
             (Value::Float(left), Value::Float(right)) => left.total_cmp(right),
             (Value::Int(left), Value::Float(right)) => (*left as f64).total_cmp(right),
             (Value::Float(left), Value::Int(right)) => left.total_cmp(&(*right as f64)),
-            _ => Ordering::Equal
+            _ => Ordering::Equal,
+        }
+    }
+}
+pub trait DeepClone: Clone {
+    fn deep_clone(&self) -> Self {
+        self.clone()
+    }
+}
+impl<T: DeepClone> DeepClone for Option<T> {
+    fn deep_clone(&self) -> Self {
+        self.as_ref().map(|v| v.deep_clone())
+    }
+}
+impl<T: DeepClone> DeepClone for Rc<T> {
+    fn deep_clone(&self) -> Self {
+        Self::new(self.as_ref().deep_clone())
+    }
+}
+impl<T: DeepClone> DeepClone for RefCell<T> {
+    fn deep_clone(&self) -> Self {
+        Self::new(self.borrow().deep_clone())
+    }
+}
+impl<T: DeepClone> DeepClone for Vec<T> {
+    fn deep_clone(&self) -> Self {
+        let mut vector = Self::new();
+        for value in self.iter() {
+            vector.push(value.deep_clone());
+        }
+        vector
+    }
+}
+impl<K: Clone + PartialEq + Eq + Hash, V: DeepClone> DeepClone for HashMap<K, V> {
+    fn deep_clone(&self) -> Self {
+        self.iter().map(|(key, value)| (key.clone(), value.deep_clone())).collect()
+    }
+}
+impl DeepClone for Object {
+    fn deep_clone(&self) -> Self {
+        Self {
+            map: self.map.deep_clone(),
+            meta: self.meta.deep_clone(),
+        }
+    }
+}
+impl DeepClone for Value {
+    fn deep_clone(&self) -> Self {
+        match self {
+            Value::Vector(vector) => Value::Vector(vector.deep_clone()),
+            Value::Object(object) => Value::Object(object.deep_clone()),
+            value => value.clone(),
         }
     }
 }
@@ -1049,7 +1196,9 @@ impl Display for RunTimeError {
             }
             RunTimeError::Custom(string) => write!(f, "{string}"),
             RunTimeError::Compiling(err) => write!(f, "{err}"),
-            RunTimeError::FileNotFound(path, err) => write!(f, "error while trying to read {path:?}: {err}"),
+            RunTimeError::FileNotFound(path, err) => {
+                write!(f, "error while trying to read {path:?}: {err}")
+            }
         }
     }
 }
