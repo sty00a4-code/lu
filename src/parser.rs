@@ -282,24 +282,34 @@ impl Parsable<Token> for Block {
     type Error = ParserError;
     fn parse(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<Self::Error>> {
         let mut stats = vec![];
-        let Located { value: _, mut pos } = expect_token!(parser: LBrace);
-        while let Some(Located {
-            value: token,
-            pos: _,
-        }) = parser.token_ref()
-        {
-            if token == &Token::RBrace {
-                break;
+        let Located { value: token, mut pos } = expect!(parser);
+        match token {
+            Token::LBrace => {
+                while let Some(Located {
+                    value: token,
+                    pos: _,
+                }) = parser.token_ref()
+                {
+                    if token == &Token::RBrace {
+                        break;
+                    }
+                    let stat = Statement::parse(parser)?;
+                    pos.extend(&stat.pos);
+                    stats.push(stat);
+                }
+                let Located {
+                    value: _,
+                    pos: end_pos,
+                } = expect_token!(parser: RBrace);
+                pos.extend(&end_pos);
             }
-            let stat = Statement::parse(parser)?;
-            pos.extend(&stat.pos);
-            stats.push(stat);
+            Token::Do => {
+                let stat = Statement::parse(parser)?;
+                pos.extend(&stat.pos);
+                stats.push(stat);
+            }
+            token => return Err(Located::new(ParserError::UnexpectedToken(token), pos))
         }
-        let Located {
-            value: _,
-            pos: end_pos,
-        } = expect_token!(parser: RBrace);
-        pos.extend(&end_pos);
         Ok(Located::new(Self(stats), pos))
     }
 }
