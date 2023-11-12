@@ -1497,6 +1497,11 @@ impl From<std::io::Error> for Value {
         Value::String(val.to_string())
     }
 }
+impl From<std::fmt::Error> for Value {
+    fn from(val: std::fmt::Error) -> Self {
+        Value::String(val.to_string())
+    }
+}
 impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Value {
     fn from(val: Result<T, E>) -> Self {
         Value::Result(val.map(|v| Box::new(v.into())).map_err(|err| Box::new(err.into())))
