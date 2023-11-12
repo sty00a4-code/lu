@@ -1304,6 +1304,15 @@ pub fn _math_atan2(
     )
 }
 
+impl From<std::process::Output> for Value {
+    fn from(val: std::process::Output) -> Self {
+        Value::Result(if val.status.success() {
+            Ok(Box::new(String::from_utf8(val.stderr).ok().map(Value::String).unwrap_or_default()))
+        } else {
+            Err(Box::new(String::from_utf8(val.stdout).ok().map(Value::String).unwrap_or_default()))
+        })
+    }
+}
 pub fn _os_execute(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -1313,20 +1322,12 @@ pub fn _os_execute(
     collect_args!(args pos path:
         Value::String(cmd) => if ! Value::String(Default::default())
         => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(
-                std::process::Command::new(cmd)
-                    .args(args.into_iter().skip(1)
-                        .map(|value| value.to_string())
-                        .collect::<Vec<String>>())
-                    .output()
-                    .map(|output| if output.status.success() {
-                        Value::String(String::from_utf8(output.stdout).ok().unwrap_or_default())
-                    } else {
-                        Value::String(String::from_utf8(output.stderr).ok().unwrap_or_default())
-                    })
-                    .map_err(|err| Value::String(err.to_string()))
-                    .into()
-            )))))
+            Ok(Some(std::process::Command::new(cmd)
+            .args(args.into_iter().skip(1)
+                .map(|value| value.to_string())
+                .collect::<Vec<String>>())
+            .output()
+            .into()))
         }
     )
 }
@@ -1408,7 +1409,7 @@ pub fn _fs_write(
         Value::String(path) => if ! Value::String(Default::default()),
         Value::String(content) => if ! Value::String(Default::default())
         => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::write(path, content).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
+            Ok(Some(std::fs::write(path, content).into()))
         }
     )
 }
@@ -1422,7 +1423,7 @@ pub fn _fs_rename(
         Value::String(old_path) => if ! Value::String(Default::default()),
         Value::String(new_path) => if ! Value::String(Default::default())
         => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::rename(old_path, new_path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
+            Ok(Some(std::fs::rename(old_path, new_path).into()))
         }
     )
 }
@@ -1435,7 +1436,7 @@ pub fn _fs_remove(
     collect_args!(args pos path:
         Value::String(path) => if ! Value::String(Default::default())
         => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::remove_file(path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
+            Ok(Some(std::fs::remove_file(path).into()))
         }
     )
 }
@@ -1448,7 +1449,7 @@ pub fn _fs_remove_dir(
     collect_args!(args pos path:
         Value::String(path) => if ! Value::String(Default::default())
         => {
-            Ok(Some(Value::Object(Rc::new(RefCell::new(std::fs::remove_dir(path).map(|_| Value::default()).map_err(|err| Value::String(err.to_string())).into())))))
+            Ok(Some(std::fs::remove_dir(path).into()))
         }
     )
 }
@@ -1485,36 +1486,19 @@ pub fn _require(
     )
 }
 
-impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Object {
+impl From<()> for Value {
+    fn from(_: ()) -> Self {
+        Value::default()
+    }
+}
+impl From<std::io::Error> for Value {
+    fn from(val: std::io::Error) -> Self {
+        Value::String(val.to_string())
+    }
+}
+impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Value {
     fn from(val: Result<T, E>) -> Self {
-        let mut meta = HashMap::new();
-        meta.insert("__name".to_string(), Value::String("result".to_string()));
-        match val {
-            Ok(value) => {
-                let mut map = HashMap::new();
-                map.insert("type".to_string(), Value::String("ok".to_string()));
-                map.insert("value".to_string(), value.into());
-                Object {
-                    map,
-                    meta: Some(Rc::new(RefCell::new(Object {
-                        map: meta,
-                        meta: None,
-                    }))),
-                }
-            }
-            Err(error) => {
-                let mut map = HashMap::new();
-                map.insert("type".to_string(), Value::String("error".to_string()));
-                map.insert("error".to_string(), error.into());
-                Object {
-                    map,
-                    meta: Some(Rc::new(RefCell::new(Object {
-                        map: meta,
-                        meta: None,
-                    }))),
-                }
-            }
-        }
+        Value::Result(val.map(|v| Box::new(v.into())).map_err(|err| Box::new(err.into())))
     }
 }
 impl<T: Into<Value>> From<Option<T>> for Object {
