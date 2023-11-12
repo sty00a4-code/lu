@@ -1323,11 +1323,12 @@ pub fn _os_execute(
         Value::String(cmd) => if ! Value::String(Default::default())
         => {
             Ok(Some(std::process::Command::new(cmd)
-            .args(args.into_iter().skip(1)
-                .map(|value| value.to_string())
-                .collect::<Vec<String>>())
-            .output()
-            .into()))
+                .args(args.into_iter().skip(1)
+                    .map(|value| value.to_string())
+                    .collect::<Vec<String>>())
+                .output()
+                .into()
+            ))
         }
     )
 }
