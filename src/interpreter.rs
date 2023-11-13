@@ -62,6 +62,7 @@ impl Object {
     }
 }
 pub trait ForeignData: Display {
+    fn copy(&self) -> Value;
     fn get(&self, key: &str) -> Option<Value>;
     fn set(&mut self, key: String, value: Value);
 }
@@ -1015,7 +1016,9 @@ impl<T: DeepClone> DeepClone for Vec<T> {
 }
 impl<K: Clone + PartialEq + Eq + Hash, V: DeepClone> DeepClone for HashMap<K, V> {
     fn deep_clone(&self) -> Self {
-        self.iter().map(|(key, value)| (key.clone(), value.deep_clone())).collect()
+        self.iter()
+            .map(|(key, value)| (key.clone(), value.deep_clone()))
+            .collect()
     }
 }
 impl DeepClone for Object {

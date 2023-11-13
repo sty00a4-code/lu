@@ -1,10 +1,15 @@
-use std::{cell::RefCell, collections::HashMap, fs, io::Write, rc::Rc, path::PathBuf, str::FromStr};
+use std::{
+    cell::RefCell, collections::HashMap, fs, io::Write, path::PathBuf,
+    rc::Rc, str::FromStr,
+};
 
 use oneparse::position::{Located, Positon};
 
 use crate::{
     compile_ast, generate_ast,
-    interpreter::{FunctionKind, Interpreter, Object, RunTimeError, Value, PathLocated, DeepClone},
+    interpreter::{
+        DeepClone, FunctionKind, Interpreter, Object, PathLocated, RunTimeError, Value,
+    },
     parser::CompileError,
 };
 
@@ -1325,9 +1330,19 @@ pub fn _math_atan2(
 impl From<std::process::Output> for Value {
     fn from(val: std::process::Output) -> Self {
         Value::Result(if val.status.success() {
-            Ok(Box::new(String::from_utf8(val.stderr).ok().map(Value::String).unwrap_or_default()))
+            Ok(Box::new(
+                String::from_utf8(val.stderr)
+                    .ok()
+                    .map(Value::String)
+                    .unwrap_or_default(),
+            ))
         } else {
-            Err(Box::new(String::from_utf8(val.stdout).ok().map(Value::String).unwrap_or_default()))
+            Err(Box::new(
+                String::from_utf8(val.stdout)
+                    .ok()
+                    .map(Value::String)
+                    .unwrap_or_default(),
+            ))
         })
     }
 }
@@ -1522,7 +1537,10 @@ impl From<std::fmt::Error> for Value {
 }
 impl<T: Into<Value>, E: Into<Value>> From<Result<T, E>> for Value {
     fn from(val: Result<T, E>) -> Self {
-        Value::Result(val.map(|v| Box::new(v.into())).map_err(|err| Box::new(err.into())))
+        Value::Result(
+            val.map(|v| Box::new(v.into()))
+                .map_err(|err| Box::new(err.into())),
+        )
     }
 }
 impl<T: Into<Value>> From<Option<T>> for Object {
