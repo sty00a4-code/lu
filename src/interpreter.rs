@@ -1,3 +1,7 @@
+use crate::{
+    compiler::{ByteCode, Closure, Location, Source},
+    parser::{BinaryOperator, CompileError, UnaryOperator},
+};
 use oneparse::position::{Located, Positon};
 use std::{
     cell::{Ref, RefCell},
@@ -7,11 +11,6 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
     rc::Rc,
-};
-
-use crate::{
-    compiler::{ByteCode, Closure, Location, Source},
-    parser::{BinaryOperator, CompileError, UnaryOperator},
 };
 
 #[derive(Clone, Default)]
