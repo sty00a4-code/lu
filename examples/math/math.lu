@@ -31,6 +31,9 @@ while true {
         tan = function(args) {
             return ok(math.tan(args[0] | 0))
         },
+		sqrt = function(args) {
+            return ok(math.sqrt(args[0] | 0))
+        },
     })? (err) {
         print(err.msg)
         continue

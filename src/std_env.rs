@@ -169,6 +169,7 @@ pub fn std_env() -> HashMap<String, Value> {
         "math".to_string(),
         make_module!("math":
             "pi" = Value::Float(std::f64::consts::PI),
+            "sqrt" = Value::Function(FunctionKind::NativeFunction(_math_sqrt)),
             "floor" = Value::Function(FunctionKind::NativeFunction(_math_floor)),
             "ceil" = Value::Function(FunctionKind::NativeFunction(_math_ceil)),
             "round" = Value::Function(FunctionKind::NativeFunction(_math_round)),
@@ -923,8 +924,8 @@ pub fn _vec_range(
     path: &str,
 ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
     collect_args!(args pos path:
-        Value::Int(start) => if ! Value::Vector(Default::default()),
-        Value::Int(end) => if ! Value::Vector(Default::default()),
+        Value::Int(start) => if ! Value::Int(Default::default()),
+        Value::Int(end) => if ! Value::Int(Default::default()),
         step => if ! Value::default()
         => {
             let step = if let Value::Int(step) = step {
@@ -1007,6 +1008,23 @@ pub fn _math_floor(
             match value {
                 Value::Int(value) => Ok(Some(Value::Int(value))),
                 Value::Float(value) => Ok(Some(Value::Float(value.floor()))),
+                value => Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
+            }
+        }
+    )
+}
+pub fn _math_sqrt(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        value => if ! Value::Float(Default::default())
+        => {
+            match value {
+                Value::Int(value) => Ok(Some(Value::Float((value as f64).sqrt()))),
+                Value::Float(value) => Ok(Some(Value::Float(value.sqrt()))),
                 value => Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("expected int/float for argument #0, got {}", value.typ())), pos.clone()), path.to_string()))
             }
         }
