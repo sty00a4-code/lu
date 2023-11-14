@@ -164,7 +164,8 @@ pub fn std_env() -> HashMap<String, Value> {
             "is_whitespace" = Value::Function(FunctionKind::NativeFunction(_str_is_whitespace)),
             "is_upper" = Value::Function(FunctionKind::NativeFunction(_str_is_upper)),
             "is_lower" = Value::Function(FunctionKind::NativeFunction(_str_is_lower)),
-            "is_punctuation" = Value::Function(FunctionKind::NativeFunction(_str_is_punctuation))
+            "is_punctuation" = Value::Function(FunctionKind::NativeFunction(_str_is_punctuation)),
+            "format" = Value::Function(FunctionKind::NativeFunction(_str_format))
         ),
     );
     env.insert(
@@ -794,6 +795,61 @@ pub fn _str_is_punctuation(
             Ok(string.chars().nth(index).map(|c| c.is_ascii_punctuation()).map(Value::Bool))
         }
     )
+}
+pub fn _str_format(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    let Value::String(string) = args.first().cloned().unwrap_or_default() else {
+        return Err(PathLocated::new(
+            Located::new(
+                RunTimeError::Custom(format!(
+                    "expected {} for argument #0, got {}",
+                    Value::String(Default::default()),
+                    args.first().cloned().unwrap_or_default()
+                )),
+                pos.clone(),
+            ),
+            path.to_string(),
+        ));
+    };
+    let mut formatted_string = String::new();
+    let values = args.into_iter().skip(1).collect::<Vec<Value>>();
+    let mut idx = 0;
+    let mut values_idx = 0;
+    while let Some(c) = string.get(idx..=idx).and_then(|s| s.chars().next()) {
+        if c == '$' {
+            idx += 1;
+            if let Some(c) = string.get(idx..=idx).and_then(|s| s.chars().next()) {
+                match c {
+                    's' => {
+                        formatted_string += &values.get(values_idx).cloned().unwrap_or_default().to_string();
+                        values_idx += 1;
+                    }
+                    'q' => {
+                        formatted_string += &match values.get(values_idx).cloned().unwrap_or_default() {
+                            Value::String(string) => format!("{string:?}"),
+                            value => value.to_string()
+                        };
+                        values_idx += 1;
+                    }
+                    c if c.is_ascii_digit() => {
+                        const ASCII_DIGIT_OFFSET: u8 = 48;
+                        formatted_string += &values.get((c as u8 - ASCII_DIGIT_OFFSET) as usize).cloned().unwrap_or_default().to_string();
+                    }
+                    c => {
+                        formatted_string.push(c);
+                    }
+                }
+            }
+        } else {
+            formatted_string.push(c);
+        }
+        idx += 1;
+    }
+    Ok(Some(Value::String(formatted_string)))
 }
 
 pub fn _vec_copy(
