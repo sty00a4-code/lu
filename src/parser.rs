@@ -68,6 +68,7 @@ pub enum Statement {
     Function {
         path: Located<Path>,
         parameters: Vec<Located<Ident>>,
+        var_arg: Option<Located<Ident>>,
         body: Located<Block>,
     },
 }
@@ -142,10 +143,12 @@ pub enum Atom {
     Object(Vec<(Located<Ident>, Located<Expression>)>),
     Function {
         parameters: Vec<Located<Ident>>,
+        var_arg: Option<Located<Ident>>,
         body: Located<Block>,
     },
     ExprFunction {
         parameters: Vec<Located<Ident>>,
+        var_arg: Option<Located<Ident>>,
         body: Box<Located<Expression>>,
     },
 }
@@ -524,12 +527,18 @@ impl Parsable<Token> for Statement {
                 let path = Path::parse(parser)?;
                 expect_token!(parser: LParan);
                 let mut parameters = vec![];
+                let mut var_arg = None;
                 while let Some(Located {
                     value: token,
                     pos: _,
                 }) = parser.token_ref()
                 {
                     if token == &Token::RParan {
+                        break;
+                    }
+                    if token == &Token::DotDotDot {
+                        parser.token();
+                        var_arg = Some(Ident::parse(parser)?);
                         break;
                     }
                     parameters.push(Ident::parse(parser)?);
@@ -548,6 +557,7 @@ impl Parsable<Token> for Statement {
                     Self::Function {
                         path,
                         parameters,
+                        var_arg,
                         body,
                     },
                     pos,
@@ -894,12 +904,18 @@ impl Parsable<Token> for Atom {
             Token::Function => {
                 expect_token!(parser: LParan);
                 let mut parameters = vec![];
+                let mut var_arg = None;
                 while let Some(Located {
                     value: token,
                     pos: _,
                 }) = parser.token_ref()
                 {
                     if token == &Token::RParan {
+                        break;
+                    }
+                    if token == &Token::DotDotDot {
+                        parser.token();
+                        var_arg = Some(Ident::parse(parser)?);
                         break;
                     }
                     parameters.push(Ident::parse(parser)?);
@@ -917,11 +933,11 @@ impl Parsable<Token> for Atom {
                     parser.token();
                     let body = Expression::parse(parser)?;
                     pos.extend(&body.pos);
-                    Ok(Located::new(Self::ExprFunction { parameters, body: Box::new(body) }, pos))
+                    Ok(Located::new(Self::ExprFunction { parameters, var_arg, body: Box::new(body) }, pos))
                 } else {
                     let body = Block::parse(parser)?;
                     pos.extend(&body.pos);
-                    Ok(Located::new(Self::Function { parameters, body }, pos))
+                    Ok(Located::new(Self::Function { parameters, var_arg, body }, pos))
                 }
             }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
@@ -1446,17 +1462,21 @@ impl Compilable for Located<Statement> {
                         pos: _,
                     },
                 parameters,
+                var_arg,
                 body,
             } => {
+                let mut parameter_amount = parameters.len();
+                if var_arg.is_some() { parameter_amount += 1 }
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
                     consts: vec![],
                     args: parameters.len(),
-                    registers: parameters.len(),
+                    var_arg: var_arg.is_some(),
+                    registers: parameter_amount,
                 };
                 compiler.push_closure(closure);
-                let registers = (0..parameters.len())
+                let registers = (0..parameter_amount)
                     .map(|_| compiler.new_register())
                     .collect::<Vec<usize>>();
                 let scope = compiler.get_scope_mut().expect("no scope on scope stack");
@@ -1469,6 +1489,9 @@ impl Compilable for Located<Statement> {
                 ) in parameters.into_iter().zip(registers)
                 {
                     scope.new_local(ident, register);
+                }
+                if let Some(Located { value: Ident(ident), pos: _ }) = var_arg {
+                    scope.new_local(ident, parameter_amount - 1);
                 }
                 body.compile(compiler)?;
                 compiler.write(ByteCode::Return { src: Source::Null }, pos.clone());
@@ -1785,16 +1808,19 @@ impl Compilable for Located<Atom> {
                 }
                 Ok(Source::Register(dst))
             }
-            Atom::Function { parameters, body } => {
+            Atom::Function { parameters, var_arg, body } => {
+                let mut parameter_amount = parameters.len();
+                if var_arg.is_some() { parameter_amount += 1 }
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
                     consts: vec![],
                     args: parameters.len(),
-                    registers: parameters.len(),
+                    var_arg: var_arg.is_some(),
+                    registers: parameter_amount,
                 };
                 compiler.push_closure(closure);
-                let registers = (0..parameters.len())
+                let registers = (0..parameter_amount)
                     .map(|_| compiler.new_register())
                     .collect::<Vec<usize>>();
                 let scope = compiler.get_scope_mut().expect("no scope on scope stack");
@@ -1808,6 +1834,9 @@ impl Compilable for Located<Atom> {
                 {
                     scope.new_local(ident, register);
                 }
+                if let Some(Located { value: Ident(ident), pos: _ }) = var_arg {
+                    scope.new_local(ident, parameter_amount - 1);
+                }
                 body.compile(compiler)?;
                 compiler.write(ByteCode::Return { src: Source::Null }, pos);
                 let closure = compiler.pop_closure().expect("no closure");
@@ -1815,16 +1844,19 @@ impl Compilable for Located<Atom> {
                     FunctionKind::Function(Rc::new(RefCell::new(closure))),
                 ))))
             },
-            Atom::ExprFunction { parameters, body } => {
+            Atom::ExprFunction { parameters, var_arg, body } => {
+                let mut parameter_amount = parameters.len();
+                if var_arg.is_some() { parameter_amount += 1 }
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
                     consts: vec![],
                     args: parameters.len(),
-                    registers: parameters.len(),
+                    var_arg: var_arg.is_some(),
+                    registers: parameter_amount,
                 };
                 compiler.push_closure(closure);
-                let registers = (0..parameters.len())
+                let registers = (0..parameter_amount)
                     .map(|_| compiler.new_register())
                     .collect::<Vec<usize>>();
                 let scope = compiler.get_scope_mut().expect("no scope on scope stack");
@@ -1837,6 +1869,9 @@ impl Compilable for Located<Atom> {
                 ) in parameters.into_iter().zip(registers)
                 {
                     scope.new_local(ident, register);
+                }
+                if let Some(Located { value: Ident(ident), pos: _ }) = var_arg {
+                    scope.new_local(ident, parameter_amount - 1);
                 }
                 let src = body.compile(compiler)?;
                 compiler.write(ByteCode::Return { src }, pos);

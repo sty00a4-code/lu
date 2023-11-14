@@ -97,6 +97,7 @@ pub struct Closure {
     pub code: Vec<Located<ByteCode>>,
     pub consts: Vec<Value>,
     pub args: usize,
+    pub var_arg: bool,
     pub registers: usize,
     pub path: String,
 }
@@ -123,6 +124,7 @@ impl Compiler {
                 code: vec![],
                 consts: vec![],
                 args: 0,
+                var_arg: false,
                 registers: 0,
                 path: path.clone(),
             }],

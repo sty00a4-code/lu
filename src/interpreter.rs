@@ -119,6 +119,7 @@ impl Interpreter {
         args: Vec<Value>,
         dst: Option<Location>,
     ) {
+        let mut args = args.into_iter();
         let call_frame = CallFrame {
             closure: RefCell::clone(&closure),
             ip: 0,
@@ -126,8 +127,15 @@ impl Interpreter {
             dst,
             path: closure.borrow().path.clone(),
         };
-        for i in 0..call_frame.closure.borrow().args {
-            self.stack.push(args.get(i).cloned().unwrap_or_default());
+        for _ in 0..call_frame.closure.borrow().args {
+            self.stack.push(args.next().unwrap_or_default());
+        }
+        if call_frame.closure.borrow().var_arg {
+            let mut var_arg = vec![];
+            for arg in args {
+                var_arg.push(arg)
+            }
+            self.stack.push(Value::Vector(Rc::new(RefCell::new(var_arg))));
         }
         for _ in call_frame.closure.borrow().args..call_frame.closure.borrow().registers {
             self.stack.push(Value::default());

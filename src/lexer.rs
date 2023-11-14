@@ -22,6 +22,8 @@ pub enum Token {
     RBrace,
     Equal,
     Dot,
+    DotDot,
+    DotDotDot,
     Colon,
     Comma,
     Questionmark,
@@ -117,6 +119,8 @@ impl Display for Token {
             Token::RBrace => write!(f, "}}"),
             Token::Equal => write!(f, "="),
             Token::Dot => write!(f, "."),
+            Token::DotDot => write!(f, ".."),
+            Token::DotDotDot => write!(f, "..."),
             Token::Colon => write!(f, ":"),
             Token::Comma => write!(f, ","),
             Token::Questionmark => write!(f, "?"),
@@ -185,7 +189,21 @@ impl Lexable for Token {
                     Ok(Some(Located::new(Token::Equal, pos)))
                 }
             }
-            '.' => Ok(Some(Located::new(Token::Dot, pos))),
+            '.' => {
+                if lexer.get() == Some('.') {
+                    pos.extend(&lexer.pos());
+                    lexer.advance();
+                    if lexer.get() == Some('.') {
+                        pos.extend(&lexer.pos());
+                        lexer.advance();
+                        Ok(Some(Located::new(Token::DotDotDot, pos)))
+                    } else {
+                        Ok(Some(Located::new(Token::DotDot, pos)))
+                    }
+                } else {
+                    Ok(Some(Located::new(Token::Dot, pos)))
+                }
+            }
             ':' => Ok(Some(Located::new(Token::Colon, pos))),
             ',' => Ok(Some(Located::new(Token::Comma, pos))),
             '?' => Ok(Some(Located::new(Token::Questionmark, pos))),
