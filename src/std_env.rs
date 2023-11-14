@@ -1,12 +1,16 @@
 use std::{
-    cell::RefCell, collections::HashMap, fs, io::Write, path::PathBuf, rc::Rc, str::FromStr,
+    cell::RefCell, collections::HashMap, fmt::Display, fs, io::{Write, Read}, path::PathBuf, rc::Rc,
+    str::FromStr,
 };
 
 use oneparse::position::{Located, Positon};
 
 use crate::{
     compile_ast, generate_ast,
-    interpreter::{DeepClone, FunctionKind, Interpreter, Object, PathLocated, RunTimeError, Value},
+    interpreter::{
+        DeepClone, ForeignData, FunctionKind, Interpreter, Object, PathLocated,
+        RunTimeError, Value, FilePathRef,
+    },
     parser::CompileError,
 };
 
@@ -214,6 +218,13 @@ pub fn std_env() -> HashMap<String, Value> {
     env.insert(
         "require".to_string(),
         Value::Function(FunctionKind::NativeFunction(_require)),
+    );
+
+    env.insert(
+        "net".to_string(),
+        make_module!("net":
+            "bind" = Value::Function(FunctionKind::NativeFunction(_net_bind))
+        ),
     );
 
     env
@@ -825,19 +836,28 @@ pub fn _str_format(
             if let Some(c) = string.get(idx..=idx).and_then(|s| s.chars().next()) {
                 match c {
                     's' => {
-                        formatted_string += &values.get(values_idx).cloned().unwrap_or_default().to_string();
+                        formatted_string += &values
+                            .get(values_idx)
+                            .cloned()
+                            .unwrap_or_default()
+                            .to_string();
                         values_idx += 1;
                     }
                     'q' => {
-                        formatted_string += &match values.get(values_idx).cloned().unwrap_or_default() {
-                            Value::String(string) => format!("{string:?}"),
-                            value => value.to_string()
-                        };
+                        formatted_string +=
+                            &match values.get(values_idx).cloned().unwrap_or_default() {
+                                Value::String(string) => format!("{string:?}"),
+                                value => value.to_string(),
+                            };
                         values_idx += 1;
                     }
                     c if c.is_ascii_digit() => {
                         const ASCII_DIGIT_OFFSET: u8 = 48;
-                        formatted_string += &values.get((c as u8 - ASCII_DIGIT_OFFSET) as usize).cloned().unwrap_or_default().to_string();
+                        formatted_string += &values
+                            .get((c as u8 - ASCII_DIGIT_OFFSET) as usize)
+                            .cloned()
+                            .unwrap_or_default()
+                            .to_string();
                     }
                     c => {
                         formatted_string.push(c);
@@ -1644,4 +1664,241 @@ impl<T: TryFrom<Value, Error = ()>, E: TryFrom<Value, Error = ()>> TryFrom<Objec
             _ => Err(()),
         }
     }
+}
+
+pub struct SocketAddr {
+    ip: String,
+    port: u16
+}
+pub struct TcpStream {
+    pub stream: std::net::TcpStream,
+    pub addr: std::net::SocketAddr
+}
+pub struct TcpListener {
+    pub listener: std::net::TcpListener,
+}
+impl From<std::net::SocketAddr> for SocketAddr {
+    fn from(value: std::net::SocketAddr) -> Self {
+        Self { ip: value.ip().to_string(), port: value.port() }
+    }
+}
+impl TcpStream {
+    pub fn new(stream: std::net::TcpStream, addr: std::net::SocketAddr) -> Self {
+        Self { stream, addr }
+    }
+    pub fn read(
+        _: &mut Interpreter,
+        args: Vec<Value>,
+        pos: &Positon,
+        path: &str,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        let arg = args.get(0).cloned().unwrap_or_default();
+        let Value::ForeignObject(object) = arg else {
+            return Err(PathLocated::new(
+                Located::new(
+                    RunTimeError::Custom(format!(
+                        "expected {} for argument #0, got {}",
+                        Value::Object(Default::default()).typ(),
+                        Value::Null.typ()
+                    )),
+                    pos.clone(),
+                ),
+                path.to_string(),
+            ));
+        };
+        let mut object = object.borrow_mut();
+        object.call_mut("read", args, pos, path)
+    }
+    pub fn write(
+        _: &mut Interpreter,
+        args: Vec<Value>,
+        pos: &Positon,
+        path: &str,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        let arg = args.get(0).cloned().unwrap_or_default();
+        let Value::ForeignObject(object) = arg else {
+            return Err(PathLocated::new(
+                Located::new(
+                    RunTimeError::Custom(format!(
+                        "expected {} for argument #0, got {}",
+                        Value::Object(Default::default()).typ(),
+                        Value::Null.typ()
+                    )),
+                    pos.clone(),
+                ),
+                path.to_string(),
+            ));
+        };
+        let mut object = object.borrow_mut();
+        object.call_mut("write", args, pos, path)
+    }
+    pub fn shutdown(
+        _: &mut Interpreter,
+        args: Vec<Value>,
+        pos: &Positon,
+        path: &str,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        let arg = args.get(0).cloned().unwrap_or_default();
+        let Value::ForeignObject(object) = arg else {
+            return Err(PathLocated::new(
+                Located::new(
+                    RunTimeError::Custom(format!(
+                        "expected {} for argument #0, got {}",
+                        Value::Object(Default::default()).typ(),
+                        Value::Null.typ()
+                    )),
+                    pos.clone(),
+                ),
+                path.to_string(),
+            ));
+        };
+        let object = object.borrow();
+        object.call("shutdown", args, pos, path)
+    }
+}
+impl TcpListener {
+    pub fn new(listener: std::net::TcpListener) -> Self {
+        Self { listener }
+    }
+    pub fn accept(
+        _: &mut Interpreter,
+        args: Vec<Value>,
+        pos: &Positon,
+        path: &str,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        let arg = args.get(0).cloned().unwrap_or_default();
+        let Value::ForeignObject(object) = arg else {
+            return Err(PathLocated::new(
+                Located::new(
+                    RunTimeError::Custom(format!(
+                        "expected {} for argument #0, got {}",
+                        Value::Object(Default::default()).typ(),
+                        Value::Null.typ()
+                    )),
+                    pos.clone(),
+                ),
+                path.to_string(),
+            ));
+        };
+        let object = object.borrow();
+        object.call("accept", args, pos, path)
+    }
+}
+impl ForeignData for SocketAddr {
+    fn get(&self, key: &str) -> Option<Value> {
+        match key {
+            "ip" => Some(Value::String(self.ip.clone())),
+            "port" => Some(Value::Int(self.port as isize)),
+            _ => None
+        }
+    }
+}
+impl ForeignData for TcpStream {
+    fn get(&self, key: &str) -> Option<Value> {
+        match key {
+            "addr" => if let Ok(addr) = self.stream.peer_addr() {
+                Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(SocketAddr::from(addr))))))
+            } else {
+                None
+            },
+            "read" => Some(Value::Function(FunctionKind::NativeFunction(Self::read))),
+            "write" => Some(Value::Function(FunctionKind::NativeFunction(Self::write))),
+            _ => None
+        }
+    }
+    fn call_mut(&mut self, func: &str, args: Vec<Value>, _: &Positon, _: FilePathRef) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        match func {
+            "read" => {
+                let mut buffer = String::new();
+                if let Err(err) = self.stream.read_to_string(&mut buffer) {
+                    return Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string()))))))
+                }
+                Ok(Some(Value::Result(Ok(Box::new(Value::String(buffer))))))
+            }
+            "write" => {
+                let content = args.get(1).cloned().unwrap_or_default().to_string();
+                if let Err(err) = self.stream.write(content.as_bytes()) {
+                    return Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string()))))))
+                }
+                Ok(Some(Value::Result(Ok(Default::default()))))
+            }
+            "shutdown" => {
+                if let Err(err) = self.stream.shutdown(std::net::Shutdown::Both) {
+                    return Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string()))))))
+                }
+                Ok(Some(Value::Result(Ok(Default::default()))))
+            }
+            _ => Ok(None)
+        }
+    }
+    fn call(&self, func: &str, _: Vec<Value>, _: &Positon, _: FilePathRef) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        match func {
+            "shutdown" => {
+                if let Err(err) = self.stream.shutdown(std::net::Shutdown::Both) {
+                    return Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string()))))))
+                }
+                Ok(Some(Value::Result(Ok(Default::default()))))
+            }
+            _ => Ok(None)
+        }
+    }
+}
+impl ForeignData for TcpListener {
+    fn get(&self, key: &str) -> Option<Value> {
+        match key {
+            "accept" => Some(Value::Function(FunctionKind::NativeFunction(Self::accept))),
+            _ => None,
+        }
+    }
+    fn call(
+        &self,
+        func: &str,
+        _: Vec<Value>,
+        _: &Positon,
+        _: FilePathRef,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        match func {
+            "accept" => {
+                match self.listener.accept() {
+                    Ok((stream, addr)) => Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(TcpStream::new(stream, addr))))))),
+                    Err(err) => Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string())))))),
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+}
+impl Display for SocketAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.ip, self.port)
+    }
+}
+impl Display for TcpStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.stream)
+    }
+}
+impl Display for TcpListener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.listener)
+    }
+}
+
+pub fn _net_bind(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(addr) => if ! Value::String(Default::default()),
+        Value::Int(ip) => if ! Value::Int(Default::default())
+        => {
+            let ip = ip.unsigned_abs() as u16;
+            let Ok(listener) = std::net::TcpListener::bind((addr, ip)) else {
+                return Ok(None)
+            };
+            Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(TcpListener::new(listener)))))))
+        }
+    )
 }
