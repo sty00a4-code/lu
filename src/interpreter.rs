@@ -320,7 +320,7 @@ impl Interpreter {
                 amount,
                 dst,
             } => {
-                let func = self.source(func).unwrap_or_default();
+                let head = self.source(func).unwrap_or_default();
                 let mut args = vec![];
                 for addr in start..start + amount {
                     args.push(
@@ -329,7 +329,27 @@ impl Interpreter {
                             .clone(),
                     );
                 }
-                match func {
+                let head = if let Value::Object(object) = head.clone() {
+                    let object = object.borrow();
+                    let Some(func) = object.get_meta("__call") else {
+                        return Err(PathLocated::new(
+                            Located::new(RunTimeError::NotCallable(Value::Object(Default::default())), pos),
+                            self.current_path().expect("no current path found").clone(),
+                        ))
+                    };
+                    if let Some(func) = object.get_meta("__call") {
+                        args.insert(0, head);
+                        func
+                    } else {
+                        return Err(PathLocated::new(
+                            Located::new(RunTimeError::NotCallable(func), pos),
+                            self.current_path().expect("no current path found").clone(),
+                        ))
+                    }
+                } else {
+                    head
+                };
+                match head {
                     Value::Function(kind) => match kind {
                         FunctionKind::Function(closure) => {
                             self.enter_call(closure, args, dst);
