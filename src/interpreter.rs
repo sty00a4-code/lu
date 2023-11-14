@@ -216,6 +216,27 @@ impl Interpreter {
             }
         }
     }
+    pub fn call(&mut self, kind: FunctionKind, args: Vec<Value>, dst: Option<Location>, pos: Positon) -> Result<(), PathLocated<RunTimeError>> {
+        match kind {
+            FunctionKind::Function(closure) => {
+                self.enter_call(closure, args, dst);
+                Ok(())
+            }
+            FunctionKind::NativeFunction(func) => {
+                let path = self
+                    .current_call_frame()
+                    .expect("no call frame on call stack")
+                    .path
+                    .clone();
+                let value = func(self, args, &pos, &path)?;
+                if let Some(dst) = dst {
+                    let register = self.location(dst).expect("location not found");
+                    *register = value.unwrap_or_default();
+                }
+                Ok(())
+            }
+        }
+    }
 
     pub fn create_trace(
         &self,
@@ -457,23 +478,9 @@ impl Interpreter {
                     );
                 }
                 match func {
-                    Value::Function(kind) => match kind {
-                        FunctionKind::Function(closure) => {
-                            self.enter_call(closure, args, dst);
-                        }
-                        FunctionKind::NativeFunction(func) => {
-                            let path = self
-                                .current_call_frame()
-                                .expect("no call frame on call stack")
-                                .path
-                                .clone();
-                            let value = func(self, args, &pos, &path)?;
-                            if let Some(dst) = dst {
-                                let register = self.location(dst).expect("location not found");
-                                *register = value.unwrap_or_default();
-                            }
-                        }
-                    },
+                    Value::Function(kind) => {
+                        self.call(kind, args, dst, pos)?;
+                    }
                     value => {
                         return Err(PathLocated::new(
                             Located::new(RunTimeError::NotCallable(value), pos),
@@ -516,7 +523,8 @@ impl Interpreter {
             ByteCode::SetField { dst, field, src } => {
                 let field = self.source(field).unwrap_or_default();
                 let value = self.source(src).unwrap_or_default();
-                match self.location(dst).expect("location not found") {
+                let head = self.location(dst).expect("location not found");
+                match head {
                     Value::Object(object) => {
                         if let Value::String(field) = field {
                             object.borrow_mut().map.insert(field.clone(), value);
@@ -788,20 +796,22 @@ impl Interpreter {
             ByteCode::Field { dst, head, field } => {
                 let head = self.source(head).unwrap_or_default();
                 let field = self.source(field).unwrap_or_default();
-                let register = self.location(dst).expect("location not found");
-                *register = match &head {
-                    Value::Object(object) => match field {
-                        Value::String(field) => object
-                            .borrow()
-                            .map
-                            .get(field.as_str())
-                            .cloned()
-                            .unwrap_or_default(),
-                        field => {
-                            return Err(PathLocated::new(
-                                Located::new(RunTimeError::InvalidField(head, field), pos),
-                                self.current_path().expect("no current path found").clone(),
-                            ))
+                let value = match &head {
+                    Value::Object(object) => {
+                        let object_clone = object.clone();
+                        match field {
+                            Value::String(field) => object_clone
+                                .borrow()
+                                .map
+                                .get(field.as_str())
+                                .cloned()
+                                .unwrap_or_default(),
+                            field => {
+                                return Err(PathLocated::new(
+                                    Located::new(RunTimeError::InvalidField(head, field), pos),
+                                    self.current_path().expect("no current path found").clone(),
+                                ))
+                            }
                         }
                     },
                     Value::ForeignObject(object) => match field {
@@ -880,6 +890,8 @@ impl Interpreter {
                         ))
                     }
                 };
+                let register = self.location(dst).expect("location not found");
+                *register = value;
             }
         }
         Ok(false)
