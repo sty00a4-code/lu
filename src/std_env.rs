@@ -223,7 +223,8 @@ pub fn std_env() -> HashMap<String, Value> {
     env.insert(
         "net".to_string(),
         make_module!("net":
-            "bind" = Value::Function(FunctionKind::NativeFunction(_net_bind))
+            "bind" = Value::Function(FunctionKind::NativeFunction(_net_bind)),
+            "connect" = Value::Function(FunctionKind::NativeFunction(_net_connect))
         ),
     );
 
@@ -1672,7 +1673,6 @@ pub struct SocketAddr {
 }
 pub struct TcpStream {
     pub stream: std::net::TcpStream,
-    pub addr: std::net::SocketAddr
 }
 pub struct TcpListener {
     pub listener: std::net::TcpListener,
@@ -1683,8 +1683,8 @@ impl From<std::net::SocketAddr> for SocketAddr {
     }
 }
 impl TcpStream {
-    pub fn new(stream: std::net::TcpStream, addr: std::net::SocketAddr) -> Self {
-        Self { stream, addr }
+    pub fn new(stream: std::net::TcpStream) -> Self {
+        Self { stream }
     }
     pub fn read(
         _: &mut Interpreter,
@@ -1860,7 +1860,7 @@ impl ForeignData for TcpListener {
         match func {
             "accept" => {
                 match self.listener.accept() {
-                    Ok((stream, addr)) => Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(TcpStream::new(stream, addr))))))),
+                    Ok((stream, _)) => Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(TcpStream::new(stream))))))),
                     Err(err) => Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string())))))),
                 }
             }
@@ -1883,7 +1883,6 @@ impl Display for TcpListener {
         write!(f, "{:?}", self.listener)
     }
 }
-
 pub fn _net_bind(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -1899,6 +1898,24 @@ pub fn _net_bind(
                 return Ok(None)
             };
             Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(TcpListener::new(listener)))))))
+        }
+    )
+}
+pub fn _net_connect(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(addr) => if ! Value::String(Default::default()),
+        Value::Int(ip) => if ! Value::Int(Default::default())
+        => {
+            let ip = ip.unsigned_abs() as u16;
+            let Ok(stream) = std::net::TcpStream::connect((addr, ip)) else {
+                return Ok(None)
+            };
+            Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(TcpStream::new(stream)))))))
         }
     )
 }
