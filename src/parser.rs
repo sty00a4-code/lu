@@ -929,15 +929,33 @@ impl Parsable<Token> for Atom {
                     expect_token!(parser: Comma);
                 }
                 expect_token!(parser: RParan);
-                if let Some(Located { value: Token::Equal, pos: _ }) = parser.token_ref() {
+                if let Some(Located {
+                    value: Token::Equal,
+                    pos: _,
+                }) = parser.token_ref()
+                {
                     parser.token();
                     let body = Expression::parse(parser)?;
                     pos.extend(&body.pos);
-                    Ok(Located::new(Self::ExprFunction { parameters, var_arg, body: Box::new(body) }, pos))
+                    Ok(Located::new(
+                        Self::ExprFunction {
+                            parameters,
+                            var_arg,
+                            body: Box::new(body),
+                        },
+                        pos,
+                    ))
                 } else {
                     let body = Block::parse(parser)?;
                     pos.extend(&body.pos);
-                    Ok(Located::new(Self::Function { parameters, var_arg, body }, pos))
+                    Ok(Located::new(
+                        Self::Function {
+                            parameters,
+                            var_arg,
+                            body,
+                        },
+                        pos,
+                    ))
                 }
             }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
@@ -1023,7 +1041,7 @@ impl Compilable for Located<Chunk> {
         for stat in chunk.0 {
             stat.compile(compiler)?;
         }
-        compiler.write(ByteCode::Halt, pos);
+        compiler.write(ByteCode::Return { src: Source::Null }, pos);
         Ok(())
     }
 }
@@ -1237,7 +1255,6 @@ impl Compilable for Located<Statement> {
                     },
                 args,
             } => {
-                
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
                 let func = {
@@ -1486,7 +1503,9 @@ impl Compilable for Located<Statement> {
                 body,
             } => {
                 let mut parameter_amount = parameters.len();
-                if var_arg.is_some() { parameter_amount += 1 }
+                if var_arg.is_some() {
+                    parameter_amount += 1
+                }
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
@@ -1510,7 +1529,11 @@ impl Compilable for Located<Statement> {
                 {
                     scope.new_local(ident, register);
                 }
-                if let Some(Located { value: Ident(ident), pos: _ }) = var_arg {
+                if let Some(Located {
+                    value: Ident(ident),
+                    pos: _,
+                }) = var_arg
+                {
                     scope.new_local(ident, parameter_amount - 1);
                 }
                 body.compile(compiler)?;
@@ -1846,9 +1869,15 @@ impl Compilable for Located<Atom> {
                 }
                 Ok(Source::Register(dst))
             }
-            Atom::Function { parameters, var_arg, body } => {
+            Atom::Function {
+                parameters,
+                var_arg,
+                body,
+            } => {
                 let mut parameter_amount = parameters.len();
-                if var_arg.is_some() { parameter_amount += 1 }
+                if var_arg.is_some() {
+                    parameter_amount += 1
+                }
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
@@ -1872,7 +1901,11 @@ impl Compilable for Located<Atom> {
                 {
                     scope.new_local(ident, register);
                 }
-                if let Some(Located { value: Ident(ident), pos: _ }) = var_arg {
+                if let Some(Located {
+                    value: Ident(ident),
+                    pos: _,
+                }) = var_arg
+                {
                     scope.new_local(ident, parameter_amount - 1);
                 }
                 body.compile(compiler)?;
@@ -1881,10 +1914,16 @@ impl Compilable for Located<Atom> {
                 Ok(Source::Const(compiler.new_const(Value::Function(
                     FunctionKind::Function(Rc::new(RefCell::new(closure))),
                 ))))
-            },
-            Atom::ExprFunction { parameters, var_arg, body } => {
+            }
+            Atom::ExprFunction {
+                parameters,
+                var_arg,
+                body,
+            } => {
                 let mut parameter_amount = parameters.len();
-                if var_arg.is_some() { parameter_amount += 1 }
+                if var_arg.is_some() {
+                    parameter_amount += 1
+                }
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
@@ -1908,7 +1947,11 @@ impl Compilable for Located<Atom> {
                 {
                     scope.new_local(ident, register);
                 }
-                if let Some(Located { value: Ident(ident), pos: _ }) = var_arg {
+                if let Some(Located {
+                    value: Ident(ident),
+                    pos: _,
+                }) = var_arg
+                {
                     scope.new_local(ident, parameter_amount - 1);
                 }
                 let src = body.compile(compiler)?;
