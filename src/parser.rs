@@ -1274,7 +1274,7 @@ impl Compilable for Located<Statement> {
                 let start = compiler.new_register();
                 compiler.write(
                     ByteCode::Move {
-                        dst: Location::Register(start + dst),
+                        dst: Location::Register(start),
                         src: head.into(),
                     },
                     pos.clone(),
@@ -1296,7 +1296,7 @@ impl Compilable for Located<Statement> {
                     ByteCode::Call {
                         func,
                         start,
-                        amount,
+                        amount: amount + 1,
                         dst: Some(Location::Register(dst)),
                     },
                     pos,

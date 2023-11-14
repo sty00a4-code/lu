@@ -974,8 +974,8 @@ impl Display for Value {
                 f,
                 "{}",
                 match result {
-                    Ok(value) => format!("ok({value})"),
-                    Err(value) => format!("err({value})"),
+                    Ok(value) => format!("ok({value:?})"),
+                    Err(value) => format!("err({value:?})"),
                 }
             ),
         }
@@ -1006,8 +1006,8 @@ impl Debug for Value {
                 f,
                 "{}",
                 match result {
-                    Ok(value) => format!("ok({value})"),
-                    Err(value) => format!("err({value})"),
+                    Ok(value) => format!("ok({value:?})"),
+                    Err(value) => format!("err({value:?})"),
                 }
             ),
         }
