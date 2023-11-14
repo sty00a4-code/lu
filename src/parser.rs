@@ -126,8 +126,8 @@ pub enum Expression {
     },
     Catch {
         expr: Box<Located<Self>>,
-        catch: Option<(Located<Ident>, Located<Block>)>
-    }
+        catch: Option<(Located<Ident>, Located<Block>)>,
+    },
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Atom {
@@ -170,7 +170,7 @@ impl AssignOperator {
             Token::SlashEqual => Some(Self::Div),
             Token::PercentEqual => Some(Self::Mod),
             Token::ExponentEqual => Some(Self::Pow),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -282,7 +282,10 @@ impl Parsable<Token> for Block {
     type Error = ParserError;
     fn parse(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<Self::Error>> {
         let mut stats = vec![];
-        let Located { value: token, mut pos } = expect!(parser);
+        let Located {
+            value: token,
+            mut pos,
+        } = expect!(parser);
         match token {
             Token::LBrace => {
                 while let Some(Located {
@@ -308,7 +311,7 @@ impl Parsable<Token> for Block {
                 pos.extend(&stat.pos);
                 stats.push(stat);
             }
-            token => return Err(Located::new(ParserError::UnexpectedToken(token), pos))
+            token => return Err(Located::new(ParserError::UnexpectedToken(token), pos)),
         }
         Ok(Located::new(Self(stats), pos))
     }
@@ -410,17 +413,19 @@ impl Parsable<Token> for Statement {
                         pos,
                     ))
                 }
-                token => if let Some(op) = AssignOperator::token(token) {
-                    expect!(parser);
-                    let expr = Expression::parse(parser)?;
-                    pos.extend(&expr.pos);
-                    Ok(Located::new(Self::Assign { op, path, expr }, pos))
-                } else {
-                    Err(Located::new(
-                        ParserError::UnexpectedToken(token.clone()),
-                        token_pos.clone(),
-                    ))
-                },
+                token => {
+                    if let Some(op) = AssignOperator::token(token) {
+                        expect!(parser);
+                        let expr = Expression::parse(parser)?;
+                        pos.extend(&expr.pos);
+                        Ok(Located::new(Self::Assign { op, path, expr }, pos))
+                    } else {
+                        Err(Located::new(
+                            ParserError::UnexpectedToken(token.clone()),
+                            token_pos.clone(),
+                        ))
+                    }
+                }
             };
         }
         let Located {
@@ -430,17 +435,29 @@ impl Parsable<Token> for Statement {
         match token {
             Token::Let => {
                 let mut idents = vec![Ident::parse(parser)?];
-                while let Some(Located { value: Token::Comma, pos: _ }) = parser.token_ref() {
+                while let Some(Located {
+                    value: Token::Comma,
+                    pos: _,
+                }) = parser.token_ref()
+                {
                     parser.token();
                     idents.push(Ident::parse(parser)?);
                 }
                 let mut exprs = vec![];
-                if let Some(Located { value: Token::Equal, pos: _ }) = parser.token_ref() {
+                if let Some(Located {
+                    value: Token::Equal,
+                    pos: _,
+                }) = parser.token_ref()
+                {
                     parser.token();
                     let expr = Expression::parse(parser)?;
                     pos.extend(&expr.pos);
                     exprs.push(expr);
-                    while let Some(Located { value: Token::Comma, pos: _ }) = parser.token_ref() {
+                    while let Some(Located {
+                        value: Token::Comma,
+                        pos: _,
+                    }) = parser.token_ref()
+                    {
                         parser.token();
                         exprs.push(Expression::parse(parser)?);
                     }
@@ -539,19 +556,36 @@ impl Parsable<Token> for Statement {
 impl Expression {
     pub fn catch(parser: &mut Parser<Token>) -> Result<Located<Self>, Located<ParserError>> {
         let mut expr = Self::binary(parser, 0)?;
-        if let Some(Located { value: Token::Questionmark, pos: _ }) = parser.token_ref() {
-            let Located { value: _, pos: token_pos } = expect!(parser);
+        if let Some(Located {
+            value: Token::Questionmark,
+            pos: _,
+        }) = parser.token_ref()
+        {
+            let Located {
+                value: _,
+                pos: token_pos,
+            } = expect!(parser);
             let mut pos = expr.pos.clone();
             pos.extend(&token_pos);
             let mut catch = None;
-            if let Some(Located { value: Token::LParan, pos: _ }) = parser.token_ref() {
+            if let Some(Located {
+                value: Token::LParan,
+                pos: _,
+            }) = parser.token_ref()
+            {
                 parser.token();
                 let ident = Ident::parse(parser)?;
                 expect_token!(parser: RParan);
                 let body = Block::parse(parser)?;
                 catch = Some((ident, body));
             }
-            expr = Located::new(Self::Catch { expr: Box::new(expr), catch }, pos)
+            expr = Located::new(
+                Self::Catch {
+                    expr: Box::new(expr),
+                    catch,
+                },
+                pos,
+            )
         }
         Ok(expr)
     }
@@ -987,7 +1021,10 @@ impl Compilable for Located<Statement> {
     fn compile(self, compiler: &mut Compiler) -> Result<Self::Output, Located<Self::Error>> {
         let Located { value: stat, pos } = self;
         match stat {
-            Statement::Let { mut idents, mut exprs } => {
+            Statement::Let {
+                mut idents,
+                mut exprs,
+            } => {
                 while !idents.is_empty() {
                     let ident = idents.remove(0);
                     let dst = compiler.new_register();
@@ -1028,10 +1065,18 @@ impl Compilable for Located<Statement> {
                         op => {
                             let bin_op = op.try_into().unwrap();
                             let dst = compiler.get_local(&ident);
-                            compiler.write(ByteCode::Binary { op: bin_op, dst, left: dst.into(), right: src }, pos);
+                            compiler.write(
+                                ByteCode::Binary {
+                                    op: bin_op,
+                                    dst,
+                                    left: dst.into(),
+                                    right: src,
+                                },
+                                pos,
+                            );
                             Ok(())
                         }
-                    }
+                    },
                     Path::Field {
                         head,
                         field:
@@ -1039,66 +1084,92 @@ impl Compilable for Located<Statement> {
                                 value: Ident(field),
                                 pos: _,
                             },
-                    } => {
-                        match op {
-                            AssignOperator::Equal => {
-                                let dst = head.compile(compiler)?;
-                                let field = Source::Const(compiler.new_const(Value::String(field)));
-                                compiler.write(ByteCode::SetField { dst, field, src }, pos);
-                                Ok(())
-                            },
-                            op => {
-                                let dst = head.compile(compiler)?;
-                                let field = Source::Const(compiler.new_const(Value::String(field)));
-                                let src = {
-                                    let bin_op = op.try_into().unwrap();
-                                    let op_dst = Location::Register(compiler.new_register());
-                                    compiler.write(ByteCode::Field { dst: op_dst, head: dst.into(), field }, pos.clone());
-                                    compiler.write(ByteCode::Binary { op: bin_op, dst: op_dst, left: op_dst.into(), right: src }, pos.clone());
-                                    op_dst.into()
-                                };
-                                compiler.write(ByteCode::SetField { dst, field, src }, pos);
-                                Ok(())
-                            }
+                    } => match op {
+                        AssignOperator::Equal => {
+                            let dst = head.compile(compiler)?;
+                            let field = Source::Const(compiler.new_const(Value::String(field)));
+                            compiler.write(ByteCode::SetField { dst, field, src }, pos);
+                            Ok(())
                         }
-                    }
-                    Path::Index { head, index } => {
-                        match op {
-                            AssignOperator::Equal => {
-                                let dst = head.compile(compiler)?;
-                                let index = index.compile(compiler)?;
+                        op => {
+                            let dst = head.compile(compiler)?;
+                            let field = Source::Const(compiler.new_const(Value::String(field)));
+                            let src = {
+                                let bin_op = op.try_into().unwrap();
+                                let op_dst = Location::Register(compiler.new_register());
                                 compiler.write(
-                                    ByteCode::SetField {
-                                        dst,
-                                        field: index,
-                                        src,
+                                    ByteCode::Field {
+                                        dst: op_dst,
+                                        head: dst.into(),
+                                        field,
                                     },
-                                    pos,
+                                    pos.clone(),
                                 );
-                                Ok(())
-                            }
-                            op => {
-                                let dst = head.compile(compiler)?;
-                                let index = index.compile(compiler)?;
-                                let src = {
-                                    let bin_op = op.try_into().unwrap();
-                                    let op_dst = Location::Register(compiler.new_register());
-                                    compiler.write(ByteCode::Field { dst: op_dst, head: dst.into(), field: index }, pos.clone());
-                                    compiler.write(ByteCode::Binary { op: bin_op, dst: op_dst, left: op_dst.into(), right: src }, pos.clone());
-                                    op_dst.into()
-                                };
                                 compiler.write(
-                                    ByteCode::SetField {
-                                        dst,
-                                        field: index,
-                                        src,
+                                    ByteCode::Binary {
+                                        op: bin_op,
+                                        dst: op_dst,
+                                        left: op_dst.into(),
+                                        right: src,
                                     },
-                                    pos,
+                                    pos.clone(),
                                 );
-                                Ok(())
-                            }
+                                op_dst.into()
+                            };
+                            compiler.write(ByteCode::SetField { dst, field, src }, pos);
+                            Ok(())
                         }
-                    }
+                    },
+                    Path::Index { head, index } => match op {
+                        AssignOperator::Equal => {
+                            let dst = head.compile(compiler)?;
+                            let index = index.compile(compiler)?;
+                            compiler.write(
+                                ByteCode::SetField {
+                                    dst,
+                                    field: index,
+                                    src,
+                                },
+                                pos,
+                            );
+                            Ok(())
+                        }
+                        op => {
+                            let dst = head.compile(compiler)?;
+                            let index = index.compile(compiler)?;
+                            let src = {
+                                let bin_op = op.try_into().unwrap();
+                                let op_dst = Location::Register(compiler.new_register());
+                                compiler.write(
+                                    ByteCode::Field {
+                                        dst: op_dst,
+                                        head: dst.into(),
+                                        field: index,
+                                    },
+                                    pos.clone(),
+                                );
+                                compiler.write(
+                                    ByteCode::Binary {
+                                        op: bin_op,
+                                        dst: op_dst,
+                                        left: op_dst.into(),
+                                        right: src,
+                                    },
+                                    pos.clone(),
+                                );
+                                op_dst.into()
+                            };
+                            compiler.write(
+                                ByteCode::SetField {
+                                    dst,
+                                    field: index,
+                                    src,
+                                },
+                                pos,
+                            );
+                            Ok(())
+                        }
+                    },
                 }
             }
             Statement::Call { func, args } => {
@@ -1570,25 +1641,61 @@ impl Compilable for Located<Expression> {
             }
             Expression::Catch { expr, catch } => {
                 let expr_src = expr.compile(compiler)?;
-                if let Some((Located { value: Ident(error_ident), pos: error_ident_pos }, body)) = catch {
+                if let Some((
+                    Located {
+                        value: Ident(error_ident),
+                        pos: error_ident_pos,
+                    },
+                    body,
+                )) = catch
+                {
                     let check_addr = compiler.addr();
                     compiler.write(ByteCode::None, Positon::default());
                     compiler.push_scope();
                     let error_reg = compiler.new_local(error_ident);
                     let error_addr = compiler.new_const(Value::String("err".to_string()));
-                    compiler.write(ByteCode::Field { dst: Location::Register(error_reg), head: expr_src, field: Source::Const(error_addr) }, error_ident_pos);
+                    compiler.write(
+                        ByteCode::Field {
+                            dst: Location::Register(error_reg),
+                            head: expr_src,
+                            field: Source::Const(error_addr),
+                        },
+                        error_ident_pos,
+                    );
                     body.compile(compiler)?;
                     compiler.pop_scope();
                     let addr = compiler.addr();
-                    compiler.overwrite(check_addr, ByteCode::JumpIf { cond: expr_src, addr, not: false }, pos.clone())
+                    compiler.overwrite(
+                        check_addr,
+                        ByteCode::JumpIf {
+                            cond: expr_src,
+                            addr,
+                            not: false,
+                        },
+                        pos.clone(),
+                    )
                 } else {
                     let addr = compiler.addr() + 2;
-                    compiler.write(ByteCode::JumpIf { cond: expr_src, addr, not: false }, pos.clone());
+                    compiler.write(
+                        ByteCode::JumpIf {
+                            cond: expr_src,
+                            addr,
+                            not: false,
+                        },
+                        pos.clone(),
+                    );
                     compiler.write(ByteCode::Return { src: expr_src }, pos.clone());
                 }
                 let ok_addr = compiler.new_const(Value::String("ok".to_string()));
                 let dst = compiler.new_register();
-                compiler.write(ByteCode::Field { dst: Location::Register(dst), head: expr_src, field: Source::Const(ok_addr) }, pos);
+                compiler.write(
+                    ByteCode::Field {
+                        dst: Location::Register(dst),
+                        head: expr_src,
+                        field: Source::Const(ok_addr),
+                    },
+                    pos,
+                );
                 Ok(Source::Register(dst))
             }
         }
