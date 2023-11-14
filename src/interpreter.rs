@@ -443,7 +443,6 @@ impl Interpreter {
 
             ByteCode::Move { dst, src } => {
                 let value = self.source(src).unwrap_or_default();
-                dbg!(&dst);
                 let register = self.location(dst).expect("location not found");
                 *register = value;
             }
