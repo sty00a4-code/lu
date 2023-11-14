@@ -1237,10 +1237,31 @@ impl Compilable for Located<Statement> {
                     },
                 args,
             } => {
+                
+                let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
-                let field = Source::Const(compiler.new_const(Value::String(field)));
+                let func = {
+                    let dst = compiler.new_register();
+                    let field = Source::Const(compiler.new_const(Value::String(field)));
+                    compiler.write(
+                        ByteCode::Field {
+                            dst: Location::Register(dst),
+                            head: head.into(),
+                            field,
+                        },
+                        pos.clone(),
+                    );
+                    Source::Register(dst)
+                };
                 let amount = args.len();
                 let start = *compiler.get_registers().expect("no registers");
+                compiler.write(
+                    ByteCode::Move {
+                        dst: Location::Register(start + dst),
+                        src: head.into(),
+                    },
+                    pos.clone(),
+                );
                 for _ in start..start + amount {
                     compiler.new_register();
                 }
@@ -1248,19 +1269,18 @@ impl Compilable for Located<Statement> {
                     let arg_dst = arg.compile(compiler)?;
                     compiler.write(
                         ByteCode::Move {
-                            dst: Location::Register(start + dst),
+                            dst: Location::Register(start + dst + 1),
                             src: arg_dst,
                         },
                         pos.clone(),
                     );
                 }
                 compiler.write(
-                    ByteCode::SelfCall {
-                        head: head.into(),
-                        field,
+                    ByteCode::Call {
+                        func,
                         start,
                         amount,
-                        dst: None,
+                        dst: Some(Location::Register(dst)),
                     },
                     pos,
                 );
@@ -1611,9 +1631,28 @@ impl Compilable for Located<Expression> {
             } => {
                 let dst = compiler.new_register();
                 let head = head.compile(compiler)?;
-                let field = Source::Const(compiler.new_const(Value::String(field)));
+                let func = {
+                    let dst = compiler.new_register();
+                    let field = Source::Const(compiler.new_const(Value::String(field)));
+                    compiler.write(
+                        ByteCode::Field {
+                            dst: Location::Register(dst),
+                            head,
+                            field,
+                        },
+                        pos.clone(),
+                    );
+                    Source::Register(dst)
+                };
                 let amount = args.len();
                 let start = *compiler.get_registers().expect("no registers");
+                compiler.write(
+                    ByteCode::Move {
+                        dst: Location::Register(start),
+                        src: head,
+                    },
+                    pos.clone(),
+                );
                 for _ in start..start + amount {
                     compiler.new_register();
                 }
@@ -1621,18 +1660,17 @@ impl Compilable for Located<Expression> {
                     let arg_dst = arg.compile(compiler)?;
                     compiler.write(
                         ByteCode::Move {
-                            dst: Location::Register(start + dst),
+                            dst: Location::Register(start + dst + 1),
                             src: arg_dst,
                         },
                         pos.clone(),
                     );
                 }
                 compiler.write(
-                    ByteCode::SelfCall {
-                        head,
-                        field,
+                    ByteCode::Call {
+                        func,
                         start,
-                        amount,
+                        amount: amount + 1,
                         dst: Some(Location::Register(dst)),
                     },
                     pos,

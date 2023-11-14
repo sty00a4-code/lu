@@ -43,6 +43,12 @@ pub type NativeFunction = fn(
     &Positon,
     FilePathRef,
 ) -> Result<Option<Value>, PathLocated<RunTimeError>>;
+pub type ForeignFunction = fn(
+    &mut Interpreter,
+    Vec<Value>,
+    &Positon,
+    FilePathRef,
+) -> Result<Option<Value>, PathLocated<RunTimeError>>;
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Object {
     pub map: HashMap<String, Value>,
@@ -61,9 +67,21 @@ impl Object {
     }
 }
 pub trait ForeignData: Display {
-    fn copy(&self) -> Value;
-    fn get(&self, key: &str) -> Option<Value>;
-    fn set(&mut self, key: String, value: Value);
+    fn copy(&self) -> Value {
+        Value::Null
+    }
+    #[allow(unused_variables)]
+    fn get(&self, key: &str) -> Option<Value> {
+        None
+    }
+    #[allow(unused_variables)]
+    fn set(&mut self, key: String, value: Value) {
+        
+    }
+    #[allow(unused_variables)]
+    fn call(&self, func: &str, args: Vec<Value>, pos: &Positon, path: FilePathRef) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        Ok(None)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -405,99 +423,6 @@ impl Interpreter {
                             }
                         }
                     },
-                    value => {
-                        return Err(PathLocated::new(
-                            Located::new(RunTimeError::NotCallable(value), pos),
-                            self.current_path().expect("no current path found").clone(),
-                        ))
-                    }
-                }
-            }
-            ByteCode::SelfCall {
-                head,
-                field,
-                start,
-                amount,
-                dst,
-            } => {
-                let head = self.source(head).unwrap_or_default();
-                let field = self.source(field).unwrap_or_default();
-                let func = match &head {
-                    Value::Object(object) => match field {
-                        Value::String(field) => object
-                            .borrow()
-                            .map
-                            .get(field.as_str())
-                            .cloned()
-                            .unwrap_or_default(),
-                        field => {
-                            return Err(PathLocated::new(
-                                Located::new(RunTimeError::InvalidField(head, field), pos),
-                                self.current_path().expect("no current path found").clone(),
-                            ))
-                        }
-                    },
-                    Value::Vector(_) => match field {
-                        Value::String(field) => {
-                            if let Some(Value::Object(vec_module)) = self.globals.get("vec") {
-                                vec_module.borrow().get(&field).unwrap_or_default()
-                            } else {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::InvalidField(head, Value::String(field)),
-                                        pos,
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ));
-                            }
-                        }
-                        field => {
-                            return Err(PathLocated::new(
-                                Located::new(RunTimeError::InvalidField(head, field), pos),
-                                self.current_path().expect("no current path found").clone(),
-                            ))
-                        }
-                    },
-                    Value::String(_) => match field {
-                        Value::String(field) => {
-                            if let Some(Value::Object(str_module)) = self.globals.get("str") {
-                                str_module.borrow().get(&field).unwrap_or_default()
-                            } else {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::InvalidField(head, Value::String(field)),
-                                        pos,
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ));
-                            }
-                        }
-                        field => {
-                            return Err(PathLocated::new(
-                                Located::new(RunTimeError::InvalidField(head, field), pos),
-                                self.current_path().expect("no current path found").clone(),
-                            ))
-                        }
-                    },
-                    _ => {
-                        return Err(PathLocated::new(
-                            Located::new(RunTimeError::InvalidFieldHead(head), pos),
-                            self.current_path().expect("no current path found").clone(),
-                        ))
-                    }
-                };
-                let mut args = vec![head.clone()];
-                for addr in start..start + amount {
-                    args.push(
-                        self.source(Source::Register(addr))
-                            .expect("source not found")
-                            .clone(),
-                    );
-                }
-                match func {
-                    Value::Function(kind) => {
-                        self.call(kind, args, dst, pos)?;
-                    }
                     value => {
                         return Err(PathLocated::new(
                             Located::new(RunTimeError::NotCallable(value), pos),
@@ -901,7 +826,7 @@ impl Interpreter {
                                 self.current_path().expect("no current path found").clone(),
                             ))
                         }
-                    },
+                    }
                     Value::Result(result) => match field {
                         Value::String(field) => match field.as_str() {
                             "ok" => result
@@ -932,7 +857,7 @@ impl Interpreter {
                                 self.current_path().expect("no current path found").clone(),
                             ))
                         }
-                    },
+                    }
                     Value::Vector(vector) => match field {
                         Value::Int(index) => vector
                             .borrow()
@@ -945,7 +870,7 @@ impl Interpreter {
                                 self.current_path().expect("no current path found").clone(),
                             ))
                         }
-                    },
+                    }
                     Value::String(string) => match field {
                         Value::Int(index) => string
                             .chars()
@@ -959,7 +884,7 @@ impl Interpreter {
                                 self.current_path().expect("no current path found").clone(),
                             ))
                         }
-                    },
+                    }
                     _ => {
                         return Err(PathLocated::new(
                             Located::new(RunTimeError::InvalidFieldHead(head), pos),

@@ -28,13 +28,6 @@ pub enum ByteCode {
         amount: usize,
         dst: Option<Location>,
     },
-    SelfCall {
-        head: Source,
-        field: Source,
-        start: usize,
-        amount: usize,
-        dst: Option<Location>,
-    },
     Return {
         src: Source,
     },
@@ -362,22 +355,6 @@ impl Display for Closure {
                     } => format!(
                         "call {} ( reg@{start} + {amount} ){}",
                         func.display_code(self),
-                        if let Some(dst) = dst {
-                            format!(" -> {}", dst.display_code(self))
-                        } else {
-                            String::new()
-                        }
-                    ),
-                    ByteCode::SelfCall {
-                        head,
-                        field,
-                        start,
-                        amount,
-                        dst,
-                    } => format!(
-                        "call {} : {} ( reg@{start} + {amount}){}",
-                        head.display_code(self),
-                        field.display_code(self),
                         if let Some(dst) = dst {
                             format!(" -> {}", dst.display_code(self))
                         } else {
