@@ -1254,7 +1254,7 @@ impl Compilable for Located<Statement> {
                     Source::Register(dst)
                 };
                 let amount = args.len();
-                let start = *compiler.get_registers().expect("no registers");
+                let start = compiler.new_register();
                 compiler.write(
                     ByteCode::Move {
                         dst: Location::Register(start + dst),
@@ -1645,7 +1645,7 @@ impl Compilable for Located<Expression> {
                     Source::Register(dst)
                 };
                 let amount = args.len();
-                let start = *compiler.get_registers().expect("no registers");
+                let start = compiler.new_register();
                 compiler.write(
                     ByteCode::Move {
                         dst: Location::Register(start),

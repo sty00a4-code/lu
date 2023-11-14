@@ -68,7 +68,7 @@ impl Object {
 }
 pub trait ForeignData: Display {
     fn copy(&self) -> Value {
-        Value::Null
+        Value::default()
     }
     #[allow(unused_variables)]
     fn get(&self, key: &str) -> Option<Value> {
@@ -80,6 +80,10 @@ pub trait ForeignData: Display {
     }
     #[allow(unused_variables)]
     fn call(&self, func: &str, args: Vec<Value>, pos: &Positon, path: FilePathRef) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        Ok(None)
+    }
+    #[allow(unused_variables)]
+    fn call_mut(&mut self, func: &str, args: Vec<Value>, pos: &Positon, path: FilePathRef) -> Result<Option<Value>, PathLocated<RunTimeError>> {
         Ok(None)
     }
 }
@@ -439,6 +443,7 @@ impl Interpreter {
 
             ByteCode::Move { dst, src } => {
                 let value = self.source(src).unwrap_or_default();
+                dbg!(&dst);
                 let register = self.location(dst).expect("location not found");
                 *register = value;
             }
