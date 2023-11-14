@@ -1,0 +1,18 @@
+function enum(name, enum) {
+	let types = {}
+	for k in keys(enum) {
+		v = setmeta(enum[k], {
+			__name = name + "." + k,
+			__type = "enum-instance"
+		})
+		types[k] = v
+	}
+	return setmeta(types, {
+		__name = name,
+		__type = "enum"
+	})
+}
+
+return {
+	enum = enum
+}

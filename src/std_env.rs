@@ -1,15 +1,12 @@
 use std::{
-    cell::RefCell, collections::HashMap, fs, io::Write, path::PathBuf,
-    rc::Rc, str::FromStr,
+    cell::RefCell, collections::HashMap, fs, io::Write, path::PathBuf, rc::Rc, str::FromStr,
 };
 
 use oneparse::position::{Located, Positon};
 
 use crate::{
     compile_ast, generate_ast,
-    interpreter::{
-        DeepClone, FunctionKind, Interpreter, Object, PathLocated, RunTimeError, Value,
-    },
+    interpreter::{DeepClone, FunctionKind, Interpreter, Object, PathLocated, RunTimeError, Value},
     parser::CompileError,
 };
 
@@ -1499,8 +1496,11 @@ pub fn _require(
         => {
             let current_file = interpreter.current_path().unwrap();
             let current_file_path = PathBuf::from_str(current_file).unwrap();
-            let full_path = current_file_path.parent().unwrap().to_str().unwrap().to_string() + "/" + &file_path;
-
+            let full_path = current_file_path
+                .parent().unwrap()
+                .to_str().unwrap()
+                .to_string() + "/" + &file_path;
+            let full_path = full_path.strip_prefix('/').unwrap_or(&full_path).to_string();
             let text = match fs::read_to_string(&full_path) {
                 Ok(text) => text,
                 Err(err) => return Err(PathLocated::new(Located::new(RunTimeError::FileNotFound(full_path.clone(), err.to_string()), pos.clone()), path.to_string()))
