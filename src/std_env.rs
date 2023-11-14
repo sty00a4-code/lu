@@ -954,7 +954,7 @@ pub fn _vec_remove(
         => {
             let index = index.unsigned_abs();
             if vector.borrow().get(index).is_some() {
-                return Ok(Some(vector.borrow_mut().remove(0)))
+                return Ok(Some(vector.borrow_mut().remove(index)))
             }
             Ok(None)
         }
