@@ -1,34 +1,16 @@
 vec2 = setmeta({
 	mt = {
 		__name = "vec2",
-		__add = function(left, right) {
-			return vec2(left.x + right.x, left.y + right.y)
-		},
-		__sub = function(left, right) {
-			return vec2(left.x - right.x, left.y - right.y)
-		},
-		__mul = function(left, right) {
-			return vec2(left.x * right.x, left.y * right.y)
-		},
-		__div = function(left, right) {
-			return vec2(left.x / right.x, left.y / right.y)
-		},
-		__eq = function(left, right) {
-			return left.x == right.x & left.y == right.y
-		},
-		__ne = function(left, right) {
-			return left.x != right.x & left.y != right.y
-		},
+		__add = function(left, right) = vec2(left.x + right.x, left.y + right.y),
+		__sub = function(left, right) = vec2(left.x - right.x, left.y - right.y),
+		__mul = function(left, right) = vec2(left.x * right.x, left.y * right.y),
+		__div = function(left, right) = vec2(left.x / right.x, left.y / right.y),
+		__eq = function(left, right) = left.x == right.x & left.y == right.y,
+		__ne = function(left, right) = left.x != right.x & left.y != right.y,
 	},
-	tostr = function(self) {
-		return tostr("(", self.x, ", ", self.y, ")")
-	},
-	len = function(self) {
-		return math.sqrt(self.x ^ 2 + self.y ^ 2)
-	},
-	normalized = function(self) {
-		return vec2(self.x / self:len(), self.y / self:len())
-	},
+	tostr = function(self) = tostr("(", self.x, ", ", self.y, ")"),
+	len = function(self) = math.sqrt(self.x ^ 2 + self.y ^ 2),
+	normalized = function(self) = vec2(self.x / self:len(), self.y / self:len()),
 	normalize = function(self) {
 		self = self:normalized()
 	},

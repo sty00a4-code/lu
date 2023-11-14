@@ -144,6 +144,10 @@ pub enum Atom {
         parameters: Vec<Located<Ident>>,
         body: Located<Block>,
     },
+    ExprFunction {
+        parameters: Vec<Located<Ident>>,
+        body: Box<Located<Expression>>,
+    },
 }
 #[derive(Debug, Clone, PartialEq)]
 pub enum Path {
@@ -909,8 +913,16 @@ impl Parsable<Token> for Atom {
                     expect_token!(parser: Comma);
                 }
                 expect_token!(parser: RParan);
-                let body = Block::parse(parser)?;
-                Ok(Located::new(Self::Function { parameters, body }, pos))
+                if let Some(Located { value: Token::Equal, pos: _ }) = parser.token_ref() {
+                    parser.token();
+                    let body = Expression::parse(parser)?;
+                    pos.extend(&body.pos);
+                    Ok(Located::new(Self::ExprFunction { parameters, body: Box::new(body) }, pos))
+                } else {
+                    let body = Block::parse(parser)?;
+                    pos.extend(&body.pos);
+                    Ok(Located::new(Self::Function { parameters, body }, pos))
+                }
             }
             token => Err(Located::new(ParserError::UnexpectedToken(token), pos)),
         }
@@ -1774,7 +1786,6 @@ impl Compilable for Located<Atom> {
                 Ok(Source::Register(dst))
             }
             Atom::Function { parameters, body } => {
-                // FIXME: register reset not working, move this code to compiler.new_function(parameters, body)
                 let closure = Closure {
                     path: compiler.path.clone(),
                     code: vec![],
@@ -1799,6 +1810,36 @@ impl Compilable for Located<Atom> {
                 }
                 body.compile(compiler)?;
                 compiler.write(ByteCode::Return { src: Source::Null }, pos);
+                let closure = compiler.pop_closure().expect("no closure");
+                Ok(Source::Const(compiler.new_const(Value::Function(
+                    FunctionKind::Function(Rc::new(RefCell::new(closure))),
+                ))))
+            },
+            Atom::ExprFunction { parameters, body } => {
+                let closure = Closure {
+                    path: compiler.path.clone(),
+                    code: vec![],
+                    consts: vec![],
+                    args: parameters.len(),
+                    registers: parameters.len(),
+                };
+                compiler.push_closure(closure);
+                let registers = (0..parameters.len())
+                    .map(|_| compiler.new_register())
+                    .collect::<Vec<usize>>();
+                let scope = compiler.get_scope_mut().expect("no scope on scope stack");
+                for (
+                    Located {
+                        value: Ident(ident),
+                        pos: _,
+                    },
+                    register,
+                ) in parameters.into_iter().zip(registers)
+                {
+                    scope.new_local(ident, register);
+                }
+                let src = body.compile(compiler)?;
+                compiler.write(ByteCode::Return { src }, pos);
                 let closure = compiler.pop_closure().expect("no closure");
                 Ok(Source::Const(compiler.new_const(Value::Function(
                     FunctionKind::Function(Rc::new(RefCell::new(closure))),
