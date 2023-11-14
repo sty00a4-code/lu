@@ -891,11 +891,21 @@ impl PartialEq for Value {
             (Self::Float(left), Self::Int(right)) => *left == *right as f64,
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::String(left), Self::String(right)) => left == right,
-            (Self::Vector(left), Self::Vector(right)) => std::ptr::eq(left, right),
-            (Self::Object(left), Self::Object(right)) => std::ptr::eq(left, right),
-            (Self::Function(left), Self::Function(right)) => std::ptr::eq(left, right),
+            (Self::Vector(left), Self::Vector(right)) => left.as_ptr() == right.as_ptr(),
+            (Self::Object(left), Self::Object(right)) => left.as_ptr() == right.as_ptr(),
+            (Self::Function(left), Self::Function(right)) => match (left, right) {
+                (FunctionKind::Function(left), FunctionKind::Function(right)) => {
+                    left.as_ptr() == right.as_ptr()
+                }
+                (FunctionKind::NativeFunction(left), FunctionKind::NativeFunction(right)) => {
+                    std::ptr::eq(left, right)
+                }
+                _ => false,
+            },
             (Self::Result(left), Self::Result(right)) => left == right,
-            (Self::ForeignObject(left), Self::ForeignObject(right)) => std::ptr::eq(left, right),
+            (Self::ForeignObject(left), Self::ForeignObject(right)) => {
+                left.as_ptr() == right.as_ptr()
+            }
             _ => false,
         }
     }
