@@ -970,7 +970,14 @@ impl Display for Value {
             ),
             Value::Function(kind) => write!(f, "function:{kind}"),
             Value::ForeignObject(object) => write!(f, "{}", object.borrow(),),
-            Value::Result(result) => write!(f, "{:?}", result),
+            Value::Result(result) => write!(
+                f,
+                "{}",
+                match result {
+                    Ok(value) => format!("ok({value})"),
+                    Err(value) => format!("err({value})"),
+                }
+            ),
         }
     }
 }
