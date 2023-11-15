@@ -227,7 +227,7 @@ impl Interpreter {
                     Value::String(ident) => ident.clone(),
                     _ => return None,
                 };
-                self.globals.get(ident.as_str()).cloned()
+                Some(self.globals.get(ident.as_str()).cloned().unwrap_or_default())
             }
         }
     }
@@ -868,6 +868,20 @@ impl Interpreter {
                             .get(index as u32 as usize)
                             .cloned()
                             .unwrap_or_default(),
+                        Value::String(field) => self.globals
+                            .get("vec")
+                            .cloned()
+                            .map(|module| if let Value::Object(module) = module {
+                                module
+                                    .borrow()
+                                    .map
+                                    .get(field.as_str())
+                                    .cloned()
+                                    .unwrap_or_default()
+                            } else {
+                                Value::default()
+                            })
+                            .unwrap_or_default(),
                         field => {
                             return Err(PathLocated::new(
                                 Located::new(RunTimeError::InvalidField(head, field), pos),
@@ -881,6 +895,20 @@ impl Interpreter {
                             .collect::<Vec<char>>()
                             .get(index.unsigned_abs())
                             .map(|c| Value::String(String::from(*c)))
+                            .unwrap_or_default(),
+                        Value::String(field) => self.globals
+                            .get("str")
+                            .cloned()
+                            .map(|module| if let Value::Object(module) = module {
+                                module
+                                    .borrow()
+                                    .map
+                                    .get(field.as_str())
+                                    .cloned()
+                                    .unwrap_or_default()
+                            } else {
+                                Value::default()
+                            })
                             .unwrap_or_default(),
                         field => {
                             return Err(PathLocated::new(
