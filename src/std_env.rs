@@ -230,6 +230,7 @@ pub fn std_env() -> HashMap<String, Value> {
 
     env
 }
+// BASIC
 pub fn _print(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -369,7 +370,7 @@ pub fn _err(
         }
     )
 }
-
+// TYPES
 pub fn _type(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -475,7 +476,7 @@ pub fn _to_vec(
         )
     }
 }
-
+// OBJ
 pub fn _obj_copy(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -547,7 +548,7 @@ pub fn _obj_get(
         }
     )
 }
-
+// STR
 pub fn _str_get(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -872,7 +873,7 @@ pub fn _str_format(
     }
     Ok(Some(Value::String(formatted_string)))
 }
-
+// VEC
 pub fn _vec_copy(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -1074,7 +1075,7 @@ pub fn _vec_contains(
         }
     )
 }
-
+// MATH
 pub fn _math_floor(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -1400,7 +1401,7 @@ pub fn _math_atan2(
         }
     )
 }
-
+// OS
 impl From<std::process::Output> for Value {
     fn from(val: std::process::Output) -> Self {
         Value::Result(if val.status.success() {
@@ -1493,7 +1494,7 @@ pub fn _os_env(
         meta: None,
     })))))
 }
-
+// FS
 pub fn _fs_read(
     _: &mut Interpreter,
     args: Vec<Value>,
@@ -1561,7 +1562,7 @@ pub fn _fs_remove_dir(
         }
     )
 }
-
+// REQUIRE
 pub fn _require(
     interpreter: &mut Interpreter,
     args: Vec<Value>,
@@ -1666,7 +1667,7 @@ impl<T: TryFrom<Value, Error = ()>, E: TryFrom<Value, Error = ()>> TryFrom<Objec
         }
     }
 }
-
+// NET
 pub struct SocketAddr {
     ip: String,
     port: u16
