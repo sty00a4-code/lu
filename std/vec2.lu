@@ -1,6 +1,7 @@
 vec2 = setmeta({
 	mt = {
 		__name = "vec2",
+		__type = "vec2",
 		__add = function(left, right) = vec2(left.x + right.x, left.y + right.y),
 		__sub = function(left, right) = vec2(left.x - right.x, left.y - right.y),
 		__mul = function(left, right) = vec2(left.x * right.x, left.y * right.y),

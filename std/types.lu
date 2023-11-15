@@ -12,7 +12,70 @@ function enum(name, enum) {
 		__type = "enum"
 	})
 }
+set = setmeta({
+	mt = {
+		__name = "set",
+		__type = "set",
+		__and = function(self, other) {
+			let new = set()
+			new.values = self.values:copy()
+			for value in other.values {
+				new:insert(value)
+			}
+			return new
+		},
+		__sub = function(self, other) {
+			let new = set()
+			new.values = self.values:copy()
+			for value in other.values {
+				new:remove(value)
+			}
+			return new
+		},
+		__or = function(self, other) {
+			let new = set()
+			for value in other.values {
+				if self:contains(value) & other:contains(value) {
+					new:insert(value)
+				}
+			}
+			return new
+		},
+	},
+	tostr = function(self) {
+		return tostr(self.values)
+	},
+	insert = function(self, value) {
+		if !self.values:contains(value) {
+			self.values:push(value)
+		}
+	},
+	remove = function(self, value) {
+		let pos = self.values:pos(value)
+		if pos != null {
+			self.values:remove(pos)
+		}
+	},
+	contains = function(self, value) {
+		return self.values:contains(value)
+	},
+	sub = function(self, other) {
+		for value in other.values {
+			if !self.values:contains(value) {
+				return false
+			}
+		}
+		return true
+	},
+}, {
+	__call = function(self, ...values) {
+		let set = obj.copy(self)
+		set.values = values
+		return setmeta(set, self.mt)
+	}
+})
 
 return {
-	enum = enum
+	enum = enum,
+	set = set,
 }
