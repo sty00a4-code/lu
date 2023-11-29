@@ -1,12 +1,14 @@
 pub mod compiler;
 pub mod interpreter;
 pub mod lexer;
+pub mod optimize;
 pub mod parser;
 pub mod std_env;
 
 use compiler::Closure;
-use interpreter::{Traced, PathLocated};
+use interpreter::{PathLocated, Traced};
 use oneparse::{parse, position::Located};
+use optimize::MoveOptimize;
 use parser::CompileError;
 use std::{cell::RefCell, fs, process::exit, rc::Rc};
 
@@ -23,7 +25,9 @@ pub fn generate_ast(text: String) -> Result<Located<Chunk>, Located<String>> {
 pub fn compile_ast(ast: Located<Chunk>, path: &str) -> Result<Closure, Located<CompileError>> {
     let mut compiler = Compiler::new(path.to_string());
     ast.compile(&mut compiler)?;
-    Ok(compiler.closures.pop().unwrap())
+    let mut closure = compiler.closures.pop().unwrap();
+    closure.optimize_move();
+    Ok(closure)
 }
 
 fn main() {
@@ -72,7 +76,11 @@ fn main() {
         }
         Err(Traced {
             trace,
-            err: PathLocated { located: Located { value: err, pos }, path },
+            err:
+                PathLocated {
+                    located: Located { value: err, pos },
+                    path,
+                },
         }) => {
             eprintln!(
                 "ERROR {}:{}:{}: {err}",
