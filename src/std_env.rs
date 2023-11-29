@@ -214,6 +214,12 @@ pub fn std_env() -> HashMap<String, Value> {
             "removedir" = Value::Function(FunctionKind::NativeFunction(_fs_remove_dir))
         ),
     );
+    env.insert(
+        "io".to_string(),
+        make_module!("io":
+            "open" = Value::Function(FunctionKind::NativeFunction(_io_open))
+        ),
+    );
 
     env.insert(
         "require".to_string(),
@@ -1666,6 +1672,133 @@ impl<T: TryFrom<Value, Error = ()>, E: TryFrom<Value, Error = ()>> TryFrom<Objec
             _ => Err(()),
         }
     }
+}
+// FILE
+pub struct File {
+    pub file: std::fs::File,
+}
+impl File {
+    pub fn new(file: std::fs::File) -> Self {
+        Self { file }
+    }
+    pub fn read(
+        _: &mut Interpreter,
+        args: Vec<Value>,
+        pos: &Positon,
+        path: &str,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        let arg = args.get(0).cloned().unwrap_or_default();
+        let Value::ForeignObject(object) = arg else {
+            return Err(PathLocated::new(
+                Located::new(
+                    RunTimeError::Custom(format!(
+                        "expected {} for argument #0, got {}",
+                        Value::Object(Default::default()).typ(),
+                        Value::Null.typ()
+                    )),
+                    pos.clone(),
+                ),
+                path.to_string(),
+            ));
+        };
+        let mut object = object.borrow_mut();
+        object.call_mut("read", args, pos, path)
+    }
+    pub fn write(
+        _: &mut Interpreter,
+        args: Vec<Value>,
+        pos: &Positon,
+        path: &str,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        let arg = args.get(0).cloned().unwrap_or_default();
+        let Value::ForeignObject(object) = arg else {
+            return Err(PathLocated::new(
+                Located::new(
+                    RunTimeError::Custom(format!(
+                        "expected {} for argument #0, got {}",
+                        Value::Object(Default::default()).typ(),
+                        Value::Null.typ()
+                    )),
+                    pos.clone(),
+                ),
+                path.to_string(),
+            ));
+        };
+        let mut object = object.borrow_mut();
+        object.call_mut("write", args, pos, path)
+    }
+}
+impl ForeignData for File {
+    fn get(&self, key: &str) -> Option<Value> {
+        match key {
+            "read" => Some(Value::Function(FunctionKind::NativeFunction(Self::read))),
+            "write" => Some(Value::Function(FunctionKind::NativeFunction(Self::write))),
+            _ => None,
+        }
+    }
+    fn call_mut(
+        &mut self,
+        func: &str,
+        args: Vec<Value>,
+        _: &Positon,
+        _: FilePathRef,
+    ) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+        match func {
+            "read" => {
+                let mut content = String::new();
+                match self.file.read_to_string(&mut content) {
+                    Ok(_) => Ok(Some(Value::Result(Ok(Box::new(Value::String(content)))))),
+                    Err(err) => Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string())))))),
+                }
+            }
+            "write" => {
+                let content = match args.get(1).cloned().unwrap_or_default() {
+                    Value::Null => "".to_string(),
+                    Value::String(arg) => arg,
+                    arg => arg.to_string()
+                };
+                match self.file.write(content.as_bytes()) {
+                    Ok(length) => Ok(Some(Value::Result(Ok(Box::new(Value::Int(length as isize)))))),
+                    Err(err) => Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string())))))),
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+}
+impl Display for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "file:{:8x?}", &self.file as *const std::fs::File)
+    }
+}
+pub fn _io_open(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    pos: &Positon,
+    path: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    collect_args!(args pos path:
+        Value::String(file_path) => if ! Value::String(Default::default()),
+        Value::String(mode) => if ! Value::String(Default::default())
+        => {
+            match mode.as_str() {
+                "r" => match std::fs::File::open(file_path) {
+                    Ok(file) => Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(File::new(file))))))),
+                    Err(err) => Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string())))))),
+                }
+                "w" => match std::fs::OpenOptions::new().read(true).write(true).open(file_path) {
+                    Ok(file) => Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(File::new(file))))))),
+                    Err(err) => Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string())))))),
+                }
+                "a" => match std::fs::OpenOptions::new().read(true).append(true).open(file_path) {
+                    Ok(file) => Ok(Some(Value::ForeignObject(Rc::new(RefCell::new(Box::new(File::new(file))))))),
+                    Err(err) => Ok(Some(Value::Result(Err(Box::new(Value::String(err.to_string())))))),
+                }
+                _ => Err(PathLocated::new(Located::new(RunTimeError::Custom(format!("invalid mode {mode:?}")), pos.clone()), path.to_string()))
+            }
+            
+        }
+    )
 }
 // NET
 pub struct SocketAddr {

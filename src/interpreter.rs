@@ -845,15 +845,7 @@ impl Interpreter {
                                 .map(|v| v.as_ref())
                                 .cloned()
                                 .unwrap_or_default(),
-                            _ => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::InvalidField(head, Value::String(field)),
-                                        pos,
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
+                            _ => Value::Null
                         },
                         field => {
                             return Err(PathLocated::new(
