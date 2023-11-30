@@ -6,7 +6,14 @@ A light weight interpreted programming language wirtten in Rust
 
 ## Tutorials
 
-1. [Introduction](docs/introduction.md)
+1. [Introduction](/docs/introduction.md)
+
+## Standard Library
+
+- [Global](/docs/std/global.md)
+- [*obj*](/docs/std/obj.md)
+- [*str*](/docs/std/str.md)
+- [*vec*](/docs/std/vec.md)
 
 # To-Do
 
@@ -20,7 +27,7 @@ A light weight interpreted programming language wirtten in Rust
   - [x] while
 - [x] function creation
 - [x] error stack
-- [ ] optimizations
+- [x] optimizations
 ## Environment
 - [x] function `setmeta(object, meta)`: set the meta information of an object
 - [x] function `error(string)`: raise an error
@@ -57,8 +64,7 @@ A light weight interpreted programming language wirtten in Rust
   - write(path, content): write the content to the file at path
   - append(path, content): append the content to the file at path
 - [x] module `os`
-- [ ] module `io`
-- [ ] module `socket`
+- [x] module `io`
 ## Use
 - [ ] Install Guide
 - [ ] Playground
