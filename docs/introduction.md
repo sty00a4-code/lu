@@ -4,4 +4,5 @@ Lu is an interpreted programming language written in [Rust](https://www.rust-lan
 
 There are also examples of Lu code in the [examples folder](/examples/) of this repository for you to check out and run yourself.
 
-*[Next](/docs/hello_world.md)*
+- *[Tutorial](/docs/hello_world.md)*
+- *[Standard Library](/docs/std/global.md)*
