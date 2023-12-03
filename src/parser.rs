@@ -1737,6 +1737,9 @@ impl Compilable for Located<Expression> {
             }
             Expression::Catch { expr, catch } => {
                 let expr_src = expr.compile(compiler)?;
+                let dst = compiler.new_register();
+                let check_addr = compiler.addr();
+                compiler.write(ByteCode::None, Positon::default());
                 if let Some((
                     Located {
                         value: Ident(error_ident),
@@ -1745,10 +1748,9 @@ impl Compilable for Located<Expression> {
                     body,
                 )) = catch
                 {
-                    let check_addr = compiler.addr();
-                    compiler.write(ByteCode::None, Positon::default());
                     compiler.push_scope();
                     let error_reg = compiler.new_local(error_ident);
+                    dbg!(error_reg);
                     let error_addr = compiler.new_const(Value::String("err".to_string()));
                     compiler.write(
                         ByteCode::Field {
@@ -1760,38 +1762,27 @@ impl Compilable for Located<Expression> {
                     );
                     body.compile(compiler)?;
                     compiler.pop_scope();
-                    let addr = compiler.addr();
-                    compiler.overwrite(
-                        check_addr,
-                        ByteCode::JumpIf {
-                            cond: expr_src,
-                            addr,
-                            not: false,
-                        },
-                        pos.clone(),
-                    )
                 } else {
-                    let addr = compiler.addr() + 2;
-                    compiler.write(
-                        ByteCode::JumpIf {
-                            cond: expr_src,
-                            addr,
-                            not: false,
-                        },
-                        pos.clone(),
-                    );
                     compiler.write(ByteCode::Return { src: expr_src }, pos.clone());
                 }
                 let ok_addr = compiler.new_const(Value::String("ok".to_string()));
-                let dst = compiler.new_register();
-                compiler.write(
+                let addr = compiler.write(
                     ByteCode::Field {
                         dst: Location::Register(dst),
                         head: expr_src,
                         field: Source::Const(ok_addr),
                     },
-                    pos,
+                    pos.clone(),
                 );
+                compiler.overwrite(
+                    check_addr,
+                    ByteCode::JumpIf {
+                        cond: expr_src,
+                        addr: addr - 1,
+                        not: false,
+                    },
+                    pos,
+                ); // FIXME: not working for some reason
                 Ok(Source::Register(dst))
             }
         }

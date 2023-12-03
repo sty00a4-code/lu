@@ -545,242 +545,230 @@ impl Interpreter {
                         object.get_meta(&format!("__{}", format!("{:?}", op).to_lowercase()))
                     {
                         self.call(kind, vec![left, right], Some(dst), pos)?;
-                    } else {
-                        return Err(PathLocated::new(
-                            Located::new(
-                                RunTimeError::Binary(
-                                    op,
-                                    Value::Object(Rc::new(RefCell::new(object.clone()))),
-                                    right,
-                                ),
-                                pos,
-                            ),
-                            self.current_path().expect("no current path").clone(),
-                        ));
+                        return Ok(false);
                     }
-                } else {
-                    let register = self.location(dst).expect("location not found");
-                    *register = match op {
-                        BinaryOperator::And => {
-                            if bool::from(&left) {
-                                right
-                            } else {
-                                left
-                            }
-                        }
-                        BinaryOperator::Or => {
-                            if bool::from(&left) {
-                                left
-                            } else {
-                                right
-                            }
-                        }
-                        BinaryOperator::EQ => Value::Bool(left == right),
-                        BinaryOperator::NE => Value::Bool(left != right),
-                        BinaryOperator::LT => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Bool(left < right),
-                            (Value::Float(left), Value::Float(right)) => Value::Bool(left < right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Bool((left as f64) < right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Bool(left < right as f64)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::GT => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Bool(left > right),
-                            (Value::Float(left), Value::Float(right)) => Value::Bool(left > right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Bool(left as f64 > right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Bool(left > right as f64)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::LE => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Bool(left <= right),
-                            (Value::Float(left), Value::Float(right)) => Value::Bool(left <= right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Bool(left as f64 <= right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Bool(left <= right as f64)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::GE => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Bool(left >= right),
-                            (Value::Float(left), Value::Float(right)) => Value::Bool(left >= right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Bool(left as f64 >= right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Bool(left >= right as f64)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::Add => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
-                            (Value::Float(left), Value::Float(right)) => Value::Float(left + right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Float(left as f64 + right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Float(left + right as f64)
-                            }
-                            (Value::String(left), Value::String(right)) => {
-                                Value::String(left + &right)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::Sub => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Int(left - right),
-                            (Value::Float(left), Value::Float(right)) => Value::Float(left - right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Float(left as f64 - right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Float(left - right as f64)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::Div => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => {
-                                Value::Float(left as f64 / right as f64)
-                            }
-                            (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Float(left as f64 / right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Float(left / right as f64)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::Mul => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Int(left * right),
-                            (Value::Float(left), Value::Float(right)) => Value::Float(left * right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Float(left as f64 * right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Float(left * right as f64)
-                            }
-                            (Value::String(left), Value::Int(right)) => {
-                                Value::String(left.repeat(right.unsigned_abs()))
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::Mod => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => Value::Int(left % right),
-                            (Value::Float(left), Value::Float(right)) => Value::Float(left % right),
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Float(left as f64 % right)
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Float(left % right as f64)
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                        BinaryOperator::Pow => match (left, right) {
-                            (Value::Int(left), Value::Int(right)) => {
-                                Value::Float((left as f64).powf(right as f64))
-                            }
-                            (Value::Float(left), Value::Float(right)) => {
-                                Value::Float(left.powf(right))
-                            }
-                            (Value::Int(left), Value::Float(right)) => {
-                                Value::Float((left as f64).powf(right))
-                            }
-                            (Value::Float(left), Value::Int(right)) => {
-                                Value::Float(left.powf(right as f64))
-                            }
-                            (left, right) => {
-                                return Err(PathLocated::new(
-                                    Located::new(
-                                        RunTimeError::Binary(op, left, right),
-                                        pos.clone(),
-                                    ),
-                                    self.current_path().expect("no current path found").clone(),
-                                ))
-                            }
-                        },
-                    };
                 }
+                let register = self.location(dst).expect("location not found");
+                *register = match op {
+                    BinaryOperator::And => {
+                        if bool::from(&left) {
+                            right
+                        } else {
+                            left
+                        }
+                    }
+                    BinaryOperator::Or => {
+                        if bool::from(&left) {
+                            left
+                        } else {
+                            right
+                        }
+                    }
+                    BinaryOperator::EQ => Value::Bool(left == right),
+                    BinaryOperator::NE => Value::Bool(left != right),
+                    BinaryOperator::LT => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left < right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left < right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool((left as f64) < right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left < right as f64)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::GT => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left > right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left > right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool(left as f64 > right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left > right as f64)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::LE => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left <= right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left <= right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool(left as f64 <= right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left <= right as f64)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::GE => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Bool(left >= right),
+                        (Value::Float(left), Value::Float(right)) => Value::Bool(left >= right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Bool(left as f64 >= right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Bool(left >= right as f64)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::Add => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Int(left + right),
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left + right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float(left as f64 + right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left + right as f64)
+                        }
+                        (Value::String(left), Value::String(right)) => {
+                            Value::String(left + &right)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::Sub => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Int(left - right),
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left - right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float(left as f64 - right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left - right as f64)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::Div => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => {
+                            Value::Float(left as f64 / right as f64)
+                        }
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left / right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float(left as f64 / right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left / right as f64)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::Mul => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Int(left * right),
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left * right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float(left as f64 * right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left * right as f64)
+                        }
+                        (Value::String(left), Value::Int(right)) => {
+                            Value::String(left.repeat(right.unsigned_abs()))
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::Mod => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => Value::Int(left % right),
+                        (Value::Float(left), Value::Float(right)) => Value::Float(left % right),
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float(left as f64 % right)
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left % right as f64)
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                    BinaryOperator::Pow => match (left, right) {
+                        (Value::Int(left), Value::Int(right)) => {
+                            Value::Float((left as f64).powf(right as f64))
+                        }
+                        (Value::Float(left), Value::Float(right)) => {
+                            Value::Float(left.powf(right))
+                        }
+                        (Value::Int(left), Value::Float(right)) => {
+                            Value::Float((left as f64).powf(right))
+                        }
+                        (Value::Float(left), Value::Int(right)) => {
+                            Value::Float(left.powf(right as f64))
+                        }
+                        (left, right) => {
+                            return Err(PathLocated::new(
+                                Located::new(
+                                    RunTimeError::Binary(op, left, right),
+                                    pos.clone(),
+                                ),
+                                self.current_path().expect("no current path found").clone(),
+                            ))
+                        }
+                    },
+                };
             }
             ByteCode::Unary { op, dst, right } => {
                 let right = self.source(right).unwrap_or_default();

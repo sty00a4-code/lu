@@ -64,7 +64,7 @@ fn main() {
             exit(1);
         }
     };
-    // println!("{}", &main_closure);
+    println!("{}", &main_closure);
     match Interpreter::default()
         .with_globals(std_env::std_env())
         .run(Rc::new(RefCell::new(main_closure)))
