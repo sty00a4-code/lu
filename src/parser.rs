@@ -1749,7 +1749,6 @@ impl Compilable for Located<Expression> {
                 {
                     compiler.push_scope();
                     let error_reg = compiler.new_local(error_ident);
-                    dbg!(error_reg);
                     let error_addr = compiler.new_const(Value::String("err".to_string()));
                     compiler.write(
                         ByteCode::Field {
