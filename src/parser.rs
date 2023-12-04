@@ -1738,8 +1738,7 @@ impl Compilable for Located<Expression> {
             Expression::Catch { expr, catch } => {
                 let expr_src = expr.compile(compiler)?;
                 let dst = compiler.new_register();
-                let check_addr = compiler.addr();
-                compiler.write(ByteCode::None, Positon::default());
+                let check_addr = compiler.write(ByteCode::None, Positon::default());
                 if let Some((
                     Located {
                         value: Ident(error_ident),
@@ -1778,11 +1777,11 @@ impl Compilable for Located<Expression> {
                     check_addr,
                     ByteCode::JumpIf {
                         cond: expr_src,
-                        addr: addr - 1,
+                        addr,
                         not: false,
                     },
                     pos,
-                ); // FIXME: not working for some reason
+                );
                 Ok(Source::Register(dst))
             }
         }

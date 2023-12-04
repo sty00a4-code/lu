@@ -8,7 +8,6 @@ pub mod std_env;
 use compiler::Closure;
 use interpreter::{PathLocated, Traced};
 use oneparse::{parse, position::Located};
-use optimize::MoveOptimize;
 use parser::CompileError;
 use std::{cell::RefCell, fs, process::exit, rc::Rc};
 
@@ -25,9 +24,7 @@ pub fn generate_ast(text: String) -> Result<Located<Chunk>, Located<String>> {
 pub fn compile_ast(ast: Located<Chunk>, path: &str) -> Result<Closure, Located<CompileError>> {
     let mut compiler = Compiler::new(path.to_string());
     ast.compile(&mut compiler)?;
-    let mut closure = compiler.closures.pop().unwrap();
-    closure.optimize_move();
-    Ok(closure)
+    Ok(compiler.closures.pop().unwrap())
 }
 
 fn main() {
