@@ -1,7 +1,6 @@
 pub mod compiler;
 pub mod interpreter;
 pub mod lexer;
-pub mod optimize;
 pub mod parser;
 pub mod std_env;
 
