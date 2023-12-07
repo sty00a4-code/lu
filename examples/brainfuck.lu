@@ -1,0 +1,51 @@
+function eval(code) {
+	let tape, ptr, loops = [], 0, []
+	for _ in range(0, 256) {
+		tape:push(0)
+	}
+	let pos = 0
+	while pos < code:len() {
+		let c = code[pos]
+		if c == "+" {
+			tape[ptr] += 1
+			if tape[ptr] > 255 {
+				tape[ptr] = 0
+			}
+		} else if c == "-" {
+			tape[ptr] -= 1
+			if tape[ptr] < 0 {
+				tape[ptr] = 255
+			}
+		} else if c == ">" {
+			ptr += 1
+			if ptr > 255 {
+				ptr = 0
+			}
+		} else if c == "<" {
+			ptr -= 1
+			if ptr < 0 {
+				ptr = 255
+			}
+		} else if c == "[" {
+			loops:push(pos)
+		} else if c == "]" {
+			if loops[loops:len() - 1] {
+				if tape[ptr] {
+					pos = loops[loops:len() - 1]
+				} else {
+					loops:pop()
+				}
+			}
+		} else if c == "." {
+			write(str.char(tape[ptr]))
+		} else if c == "," {
+			tape[ptr] = toint(tape[ptr]) | 0
+		}
+		pos += 1
+	}
+}
+
+eval ">++++++++[<+++++++++>-]<.>++++[<+++++++>-]<+.+++++++..+++.>>++++++[<+++++++>-]<+
++.------------.>++++++[<+++++++++>-]<+.<.+++.------.--------.>>>++++[<++++++++>-
+]<+."
+print()
