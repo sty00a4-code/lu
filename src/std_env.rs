@@ -67,6 +67,10 @@ pub fn std_env() -> HashMap<String, Value> {
         Value::Function(FunctionKind::NativeFunction(_print)),
     );
     env.insert(
+        "write".into(),
+        Value::Function(FunctionKind::NativeFunction(_write)),
+    );
+    env.insert(
         "input".into(),
         Value::Function(FunctionKind::NativeFunction(_input)),
     );
@@ -249,6 +253,21 @@ pub fn _print(
             .map(|value| value.to_string())
             .collect::<Vec<String>>()
             .join("\t")
+    );
+    Ok(None)
+}
+pub fn _write(
+    _: &mut Interpreter,
+    args: Vec<Value>,
+    _: &Positon,
+    _: &str,
+) -> Result<Option<Value>, PathLocated<RunTimeError>> {
+    print!(
+        "{}",
+        args.into_iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<String>>()
+            .join(" ")
     );
     Ok(None)
 }
